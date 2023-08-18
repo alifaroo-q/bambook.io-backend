@@ -10,8 +10,8 @@ import { check, validationResult } from "express-validator";
 import TemplateModel from "../../model/template.model";
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
 const linkSchema = z.object({
   title: z.string(),

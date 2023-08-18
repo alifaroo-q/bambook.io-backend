@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "rest api for bambook.io react web application",
   "main": "server.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/server.js",
