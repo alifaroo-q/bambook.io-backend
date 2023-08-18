@@ -85,7 +85,7 @@ router.post(
     const userId = req.user.toObject({ getters: true }).id;
     let custom_logo: string | null;
     if (req.file) {
-      custom_logo = `${req.protocol}://${req.hostname}:${process.env.PORT}/uploads/${req.file.filename}`;
+      custom_logo = `${req.hostname}/uploads/${req.file.filename}`;
     }
 
     const newTemplate = new TemplateModel(req.body);
