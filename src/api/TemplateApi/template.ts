@@ -22,7 +22,7 @@ const linksArray = z.array(linkSchema);
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.resolve(__dirname, "../../../src/uploads"));
+    cb(null, path.resolve(__dirname, "../../uploads"));
   },
   filename: function (req, file, cb) {
     const fileName = file.originalname.toLowerCase().split(" ").join("-");
