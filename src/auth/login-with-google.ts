@@ -25,7 +25,12 @@ router.get(
   }),
   async (req, res) => {
     const { token } = issueJWT(req.user);
-    res.cookie("jwt_access_token", JSON.stringify(token)).redirect(clientUrl);
+    res
+      .cookie("jwt", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "dev" ? false : true,
+      })
+      .redirect(clientUrl);
   }
 );
 

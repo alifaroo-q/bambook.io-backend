@@ -3,12 +3,11 @@ import bcrypt from "bcrypt";
 export async function hashPassword(password: string) {
   const saltRounds = 10;
 
-  const hashedPassword = await new Promise((resolve, reject) => {
-    bcrypt.hash(password, saltRounds, function (err, hash) {
-      if (err) reject(err);
-      else resolve(hash);
-    });
-  });
-
-  return hashedPassword;
+  try {
+    const hash = await bcrypt.hash(password, saltRounds);
+    console.log(hash);
+    return hash;
+  } catch (error) {
+    console.error("Something went wrong during hashing", error);
+  }
 }

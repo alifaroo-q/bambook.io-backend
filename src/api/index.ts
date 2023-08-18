@@ -1,7 +1,7 @@
 import express from "express";
 
 import places from "./places";
-import template from "./TemplateApi";
+import template from "./TemplateApi/template";
 import page from "./PageApi";
 
 const router = express.Router();

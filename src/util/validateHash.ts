@@ -1,6 +1,5 @@
-import { hashPassword } from "./hashPassword";
+import bcrypt from "bcrypt";
 
-export async function validateHash(candidatePassword: string, hash: string) {
-    const candidateHash = await hashPassword(candidatePassword)
-    return candidateHash === hash
+export function validateHash(candidatePassword: string, hash: string) {
+  return bcrypt.compareSync(candidatePassword, hash);
 }

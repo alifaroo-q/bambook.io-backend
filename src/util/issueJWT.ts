@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 const issueJWT = (user: any) => {
   const _id = user._id;
-  const expiresIn = "1d";
+  const expiresInMS = 7 * 24 * 60 * 60 * 1000; // days * hours * minutes * seconds * milliseconds
 
   const payload = {
     sub: _id,
@@ -10,13 +10,13 @@ const issueJWT = (user: any) => {
   };
 
   const signedToken = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn,
+    expiresIn: expiresInMS,
     algorithm: "HS256",
   });
 
   return {
-    token: `Bearer ${signedToken}`,
-    expires: expiresIn,
+    token: signedToken,
+    expiresInMS,
   };
 };
 

@@ -4,6 +4,9 @@ import morgan from "morgan";
 import helmet from "helmet";
 import cors from "cors";
 import passport from "passport";
+import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import { StatusCodes } from "http-status-codes";
 
 import connectDB from "./db/mongodb";
@@ -21,8 +24,15 @@ import requireJwtAuth from "./middleware/jwt-auth.middleware";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(bodyParser.urlencoded({ extended: false }));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// @ts-ignore
+app.use(express.static(path.join(__dirname, "uploads")));
+
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(helmet());
 app.use(cors({ origin: "*", credentials: true }));
@@ -35,6 +45,12 @@ app.get("/health", (req, res) => {
 
 app.use("/auth", auth);
 app.use("/api", requireJwtAuth, api);
+
+app.get("/uploads/:filename", requireJwtAuth, (req, res, next) => {
+  const { filename } = req.params;
+  const imagePath = path.join(__dirname, "./uploads/" + filename);
+  return res.sendFile(imagePath);
+});
 
 app.use(RouteNotFoundMiddleware);
 app.use(ErrorMiddleware);
