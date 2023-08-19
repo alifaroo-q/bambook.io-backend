@@ -40,7 +40,7 @@ const upload = multer({
       cb(null, false);
       return cb(
         new HttpError(
-          "Only .png, .jpg and .jpeg format allowed",
+          "Only .png, .jpg and .jpeg image format allowed",
           StatusCodes.UNSUPPORTED_MEDIA_TYPE
         )
       );
@@ -120,7 +120,7 @@ router.get("/user/:userId", (req, res, next) => {
       if (!templates)
         return next(
           new HttpError(
-            "template(s) with provided user id not found",
+            "Template(s) with provided user id not found",
             StatusCodes.NOT_FOUND
           )
         );
@@ -140,7 +140,7 @@ router.get("/:templateId", (req, res, next) => {
       if (!template)
         return next(
           new HttpError(
-            "template with provided id not found",
+            "Template with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
@@ -160,7 +160,7 @@ router.delete("/:templateId", (req, res, next) => {
       if (!template)
         return next(
           new HttpError(
-            "template with provided id not found",
+            "Template with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
@@ -180,7 +180,7 @@ router.delete("/user/:userId", (req, res, next) => {
       if (templates.deletedCount === 0)
         return next(
           new HttpError(
-            "template(s) with provided user id not found",
+            "Template(s) with provided user id not found",
             StatusCodes.NOT_FOUND
           )
         );

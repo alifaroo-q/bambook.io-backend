@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import cors from "cors";
 import morgan from "morgan";
@@ -19,6 +20,7 @@ import "./auth/passport-google";
 import api from "./api";
 import auth from "./auth";
 import requireJwtAuth from "./middleware/jwt-auth.middleware";
+import HttpError from "./model/http-error.model";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,7 +46,12 @@ app.use("/api", requireJwtAuth, api);
 app.get("/uploads/:filename", requireJwtAuth, (req, res, next) => {
   const { filename } = req.params;
   const imagePath = path.join(__dirname, "./uploads/" + filename);
-  return res.sendFile(imagePath);
+
+  fs.access(imagePath, fs.constants.F_OK, (error) => {
+    if (error)
+      return next(new HttpError("Image does not exist", StatusCodes.NOT_FOUND));
+    else return res.sendFile(imagePath);
+  });
 });
 
 app.use(RouteNotFoundMiddleware);

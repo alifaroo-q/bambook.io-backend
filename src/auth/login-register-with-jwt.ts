@@ -97,7 +97,7 @@ router.post(
     if (existingUser) {
       return next(
         new HttpError(
-          "user with provided email already exist, please try another email",
+          "User with provided email already exist, please try another email",
           StatusCodes.BAD_REQUEST
         )
       );
@@ -114,7 +114,7 @@ router.post(
       await newUser.save();
       res.status(StatusCodes.CREATED).json({ success: true, user: newUser });
     } catch (error) {
-      console.error("Can't register new user, something went wrong", error);
+      console.error("Cannot register new user, something went wrong", error);
       next(error);
     }
   }
