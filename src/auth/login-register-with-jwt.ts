@@ -91,6 +91,18 @@ router.post(
     }
 
     const { email, password }: { email: string; password: string } = req.body;
+
+    const existingUser = await User.findOne({ email: email }).exec();
+
+    if (existingUser) {
+      return next(
+        new HttpError(
+          "user with provided email already exist, please try another email",
+          StatusCodes.BAD_REQUEST
+        )
+      );
+    }
+
     const hashedPassword = await hashPassword(password);
 
     const newUser = new User({
@@ -100,7 +112,7 @@ router.post(
 
     try {
       await newUser.save();
-      res.status(StatusCodes.OK).json({ success: true, user: newUser });
+      res.status(StatusCodes.CREATED).json({ success: true, user: newUser });
     } catch (error) {
       console.error("Can't register new user, something went wrong", error);
       next(error);

@@ -1,1 +1,1 @@
-const ignore = "please ignore this file"
+const ignore = "ignore this file and do not delete it";

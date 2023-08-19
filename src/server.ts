@@ -1,12 +1,11 @@
-import express from "express";
-import bodyParser from "body-parser";
+import path from "path";
+import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
-import cors from "cors";
+import express from "express";
 import passport from "passport";
+import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
-import path from "path";
-import { fileURLToPath } from "url";
 import { StatusCodes } from "http-status-codes";
 
 import connectDB from "./db/mongodb";
@@ -17,23 +16,19 @@ import "dotenv/config";
 import "./auth/passport-jwt";
 import "./auth/passport-google";
 
-import auth from "./auth";
 import api from "./api";
+import auth from "./auth";
 import requireJwtAuth from "./middleware/jwt-auth.middleware";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// @ts-ignore
 app.use(express.static(path.join(__dirname, "uploads")));
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
-app.use(morgan("dev"));
+app.use(morgan("common"));
 app.use(helmet());
 app.use(cors({ origin: "*", credentials: true }));
 

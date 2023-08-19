@@ -1,17 +1,14 @@
 import z from "zod";
-import multer from "multer";
-import express, { NextFunction, Request, Response } from "express";
-import HttpError from "../../model/http-error.model";
 import path from "path";
-import { fileURLToPath } from "url";
+import multer from "multer";
 import { StatusCodes } from "http-status-codes";
+import HttpError from "../../model/http-error.model";
 import { check, validationResult } from "express-validator";
+import express, { NextFunction, Request, Response } from "express";
 
 import TemplateModel from "../../model/template.model";
-const router = express.Router();
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
+const router = express.Router();
 
 const linkSchema = z.object({
   title: z.string(),
@@ -84,6 +81,7 @@ router.post(
     // @ts-ignore
     const userId = req.user.toObject({ getters: true }).id;
     let custom_logo: string | null;
+    
     if (req.file) {
       custom_logo = `${req.hostname}/uploads/${req.file.filename}`;
     }
