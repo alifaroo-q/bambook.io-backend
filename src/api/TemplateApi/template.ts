@@ -49,12 +49,25 @@ const upload = multer({
 });
 
 const NEW_TEMPLATE_VALIDATORS = [
-  check("url").isString().notEmpty(),
-  check("font_family").isString().notEmpty(),
-  check("corner_styles").isString().notEmpty(),
-  check("header").isBoolean().notEmpty(),
-  check("title").isString().notEmpty(),
-  check("links")
+  check("url", "url value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
+  check("font_family", "font_family value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
+  check(
+    "corner_styles",
+    "corner_styles value must be a string or it is missing"
+  )
+    .isString()
+    .notEmpty(),
+  check("header", "header value must be a string or it is missing")
+    .isString()
+    .toBoolean(),
+  check("title", "title value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
+  check("links", "links value must a valid links array or it is missing")
     .isString()
     .customSanitizer((value) => {
       const payload: [] = JSON.parse(value);
@@ -70,18 +83,15 @@ router.post(
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-      return next(
-        new HttpError(
-          "Wrong data provided, please check your data and try again",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        )
-      );
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
+    console.log(req.body);
     // @ts-ignore
     const userId = req.user.toObject({ getters: true }).id;
     let custom_logo: string | null;
-    
+
     if (req.file) {
       custom_logo = `${req.hostname}/uploads/${req.file.filename}`;
     }
@@ -94,7 +104,7 @@ router.post(
       .save()
       .then()
       .catch((error) => next(error));
-    return res.json(newTemplate.toJSON());
+    return res.status(StatusCodes.CREATED).json(newTemplate.toJSON());
   }
 );
 
@@ -102,7 +112,7 @@ router.get("/", (req, res, next) => {
   TemplateModel.find()
     .exec()
     .then((template) => {
-      return res.json(template);
+      return res.status(StatusCodes.OK).json(template);
     })
     .catch(() => {
       return next(
@@ -124,7 +134,7 @@ router.get("/user/:userId", (req, res, next) => {
             StatusCodes.NOT_FOUND
           )
         );
-      return res.json(templates);
+      return res.status(StatusCodes.OK).json(templates);
     })
     .catch((error) => {
       return next(error);
@@ -144,7 +154,7 @@ router.get("/:templateId", (req, res, next) => {
             StatusCodes.NOT_FOUND
           )
         );
-      return res.json(template);
+      return res.status(StatusCodes.OK).json(template);
     })
     .catch((error) => {
       return next(error);
@@ -164,7 +174,9 @@ router.delete("/:templateId", (req, res, next) => {
             StatusCodes.NOT_FOUND
           )
         );
-      return res.json(template);
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Template Deleted" });
     })
     .catch((error) => {
       return next(error);
@@ -184,7 +196,9 @@ router.delete("/user/:userId", (req, res, next) => {
             StatusCodes.NOT_FOUND
           )
         );
-      return res.json(templates);
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Template(s) Deleted" });
     })
     .catch((error) => {
       return next(error);
