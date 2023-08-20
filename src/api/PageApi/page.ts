@@ -104,7 +104,6 @@ const NEW_PAGE_VALIDATORS = [
     }),
 ];
 
-
 router.post(
   "/",
   upload.fields([
@@ -121,7 +120,7 @@ router.post(
     }
 
     // @ts-ignore
-      const userId = req.user.toObject({ getters: true }).id;
+    const userId = req.user.toObject({ getters: true }).id;
 
     // @ts-ignore
     const custom_logo = req.files.custom_logo[0].filename;
@@ -144,7 +143,6 @@ router.post(
     };
 
     const newPage = new PageModel(pageData);
-    console.log(newPage);
 
     newPage
       .save()
@@ -154,5 +152,102 @@ router.post(
     res.status(StatusCodes.CREATED).json(newPage);
   }
 );
+
+router.get("/all", (req, res, next) => {
+  PageModel.find()
+    .exec()
+    .then((page) => {
+      return res.status(StatusCodes.OK).json(page);
+    })
+    .catch(() => {
+      return next(
+        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+      );
+    });
+});
+
+router.get("/user/:userId", (req, res, next) => {
+  const { userId } = req.params;
+
+  PageModel.find({ userId: userId })
+    .exec()
+    .then((page) => {
+      if (!page)
+        return next(
+          new HttpError(
+            "Page(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res.status(StatusCodes.OK).json(page);
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
+
+router.get("/:pageId", (req, res, next) => {
+  const { pageId } = req.params;
+
+  PageModel.findById(pageId)
+    .exec()
+    .then((page) => {
+      if (!page)
+        return next(
+          new HttpError(
+            "Page with provided id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res.status(StatusCodes.OK).json(page);
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
+
+router.delete("/:pageId", (req, res, next) => {
+  const { pageId } = req.params;
+
+  PageModel.findByIdAndDelete(pageId)
+    .exec()
+    .then((page) => {
+      if (!page)
+        return next(
+          new HttpError(
+            "Page with provided id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Page Deleted" });
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
+
+router.delete("/user/:userId", (req, res, next) => {
+  const { userId } = req.params;
+
+  PageModel.deleteMany({ userId: userId })
+    .exec()
+    .then((pages) => {
+      if (pages.deletedCount === 0)
+        return next(
+          new HttpError(
+            "Page(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Page(s) Deleted" });
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
 
 export default router;

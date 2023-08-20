@@ -117,7 +117,7 @@ router.post(
   }
 );
 
-router.get("/", (req, res, next) => {
+router.get("/all", (req, res, next) => {
   TemplateModel.find()
     .exec()
     .then((template) => {
