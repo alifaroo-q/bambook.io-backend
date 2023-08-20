@@ -1,6 +1,7 @@
 import z from "zod";
 import path from "path";
 import multer from "multer";
+import { randomBytes } from "crypto";
 import { StatusCodes } from "http-status-codes";
 import { check, validationResult } from "express-validator";
 import express, { NextFunction, Request, Response } from "express";
@@ -16,29 +17,12 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const fileName = file.originalname.toLowerCase().split(" ").join("-");
-    cb(null, `custom_logo-${Date.now()}-${fileName}`);
+    cb(null, `${Date.now() + randomBytes(5).toString("hex")}-${fileName}`);
   },
 });
 
 const upload = multer({
   storage: storage,
-  fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype == "image/png" ||
-      file.mimetype == "image/jpg" ||
-      file.mimetype == "image/jpeg"
-    ) {
-      cb(null, true);
-    } else {
-      cb(null, false);
-      return cb(
-        new HttpError(
-          "Only .png, .jpg and .jpeg image format allowed",
-          StatusCodes.UNSUPPORTED_MEDIA_TYPE
-        )
-      );
-    }
-  },
 });
 
 const themeSchema = z.object({
@@ -120,9 +104,13 @@ const NEW_PAGE_VALIDATORS = [
     }),
 ];
 
+
 router.post(
   "/",
-  upload.none(),
+  upload.fields([
+    { name: "custom_logo", maxCount: 1 },
+    { name: "footer_logo", maxCount: 1 },
+  ]),
   NEW_PAGE_VALIDATORS,
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -133,9 +121,29 @@ router.post(
     }
 
     // @ts-ignore
-    //   const userId = req.user.toObject({ getters: true }).id;
+      const userId = req.user.toObject({ getters: true }).id;
 
-    const newPage = new PageModel(req.body);
+    // @ts-ignore
+    const custom_logo = req.files.custom_logo[0].filename;
+    // @ts-ignore
+    const footer_logo = req.files.footer_logo[0].filename;
+
+    const pageData = {
+      userId: userId,
+      title: req.body.title,
+      url: req.body.url,
+      theme: req.body.theme,
+      font_family: req.body.font_family,
+      corner_styles: req.body.corner_styles,
+      footer_toggle: req.body.footer_toggle,
+      footer_config: req.body.footer_config,
+      pagination_bg_color: req.body.pagination_bg_color,
+      pagination_text_color: req.body.pagination_text_color,
+      footer_logo: `${req.hostname}/uploads/${footer_logo}`,
+      custom_logo: `${req.hostname}/uploads/${custom_logo}`,
+    };
+
+    const newPage = new PageModel(pageData);
     console.log(newPage);
 
     newPage
@@ -143,7 +151,7 @@ router.post(
       .then()
       .catch((error) => next(error));
 
-    res.json(newPage);
+    res.status(StatusCodes.CREATED).json(newPage);
   }
 );
 

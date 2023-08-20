@@ -1,12 +1,13 @@
 import z from "zod";
 import path from "path";
 import multer from "multer";
+import { randomBytes } from "crypto";
 import { StatusCodes } from "http-status-codes";
-import HttpError from "../../model/http-error.model";
 import { check, validationResult } from "express-validator";
 import express, { NextFunction, Request, Response } from "express";
 
 import TemplateModel from "../../model/template.model";
+import HttpError from "../../model/http-error.model";
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const fileName = file.originalname.toLowerCase().split(" ").join("-");
-    cb(null, `custom_logo-${Date.now()}-${fileName}`);
+    cb(null, `${randomBytes(5).toString("hex")}-${fileName}`);
   },
 });
 
@@ -87,18 +88,26 @@ router.post(
       return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
-    console.log(req.body);
     // @ts-ignore
     const userId = req.user.toObject({ getters: true }).id;
-    let custom_logo: string | null;
 
+    let custom_logo: string | null;
     if (req.file) {
       custom_logo = `${req.hostname}/uploads/${req.file.filename}`;
     }
 
-    const newTemplate = new TemplateModel(req.body);
-    newTemplate.userId = userId;
-    newTemplate.custom_logo = custom_logo;
+    const templateData = {
+      url: req.body.url,
+      font_family: req.body.font_family,
+      corner_styles: req.body.corner_styles,
+      header: req.body.header,
+      title: req.body.title,
+      links: req.body.links,
+      userId: userId,
+      custom_logo: custom_logo,
+    };
+
+    const newTemplate = new TemplateModel(templateData);
 
     newTemplate
       .save()
