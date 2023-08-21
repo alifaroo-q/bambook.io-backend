@@ -1,4 +1,5 @@
 import z from "zod";
+import { unlink } from "fs/promises";
 import path from "path";
 import multer from "multer";
 import { randomBytes } from "crypto";
@@ -206,26 +207,53 @@ router.get("/:pageId", (req, res, next) => {
     });
 });
 
-router.delete("/:pageId", (req, res, next) => {
+router.delete("/:pageId", async (req, res, next) => {
   const { pageId } = req.params;
 
-  PageModel.findByIdAndDelete(pageId)
-    .exec()
-    .then((page) => {
-      if (!page)
-        return next(
-          new HttpError(
-            "Page with provided id not found",
-            StatusCodes.NOT_FOUND
-          )
-        );
-      return res
-        .status(StatusCodes.OK)
-        .json({ success: true, message: "Page Deleted" });
-    })
-    .catch((error) => {
-      return next(error);
-    });
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
+
+  try {
+    const page = await PageModel.findById(pageId).exec();
+    if (!page)
+      return next(
+        new HttpError(
+          "Template with provided id not found",
+          StatusCodes.NOT_FOUND
+        )
+      );
+
+    if (page.userId.toString() !== userId) {
+      return next(
+        new HttpError(
+          "Cannot delete page, only user who created page can delete it",
+          StatusCodes.UNAUTHORIZED
+        )
+      );
+    }
+
+    const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+
+    const custom_logo = imagePath + page.custom_logo.split("/").at(-1);
+    const footer_logo = imagePath + page.footer_logo.split("/").at(-1);
+
+    const images = [custom_logo, footer_logo];
+
+    const imagesDeletePromise = images.map((image) => unlink(image));
+    Promise.all(imagesDeletePromise);
+    await PageModel.deleteOne({ _id: pageId }).exec();
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: "Page Deleted" });
+  } catch (error) {
+    return next(
+      new HttpError(
+        "Page does not exist or something went wrong",
+        StatusCodes.INTERNAL_SERVER_ERROR
+      )
+    );
+  }
 });
 
 router.delete("/user/:userId", (req, res, next) => {

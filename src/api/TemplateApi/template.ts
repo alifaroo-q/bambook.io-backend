@@ -1,9 +1,10 @@
 import z from "zod";
+import { unlink } from "fs/promises";
 import path from "path";
 import multer from "multer";
 import { randomBytes } from "crypto";
 import { StatusCodes } from "http-status-codes";
-import { check, validationResult } from "express-validator";
+import { check, validationResult, param } from "express-validator";
 import express, { NextFunction, Request, Response } from "express";
 
 import TemplateModel from "../../model/template.model";
@@ -76,9 +77,25 @@ const NEW_TEMPLATE_VALIDATORS = [
     }),
 ];
 
+const validateCustomLogo = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const image = req.file;
+  if (image && image.fieldname === "custom_logo") return next();
+  return next(
+    new HttpError(
+      "custom_logo must be image or it is missing",
+      StatusCodes.UNPROCESSABLE_ENTITY
+    )
+  );
+};
+
 router.post(
   "/",
   upload.single("custom_logo"),
+  validateCustomLogo,
   NEW_TEMPLATE_VALIDATORS,
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -130,66 +147,108 @@ router.get("/all", (req, res, next) => {
     });
 });
 
-router.get("/user/:userId", (req, res, next) => {
-  const { userId } = req.params;
+router.get(
+  "/user/:userId",
+  param("userId", "Wrong user id provided or it is missing")
+    .isString()
+    .isLength({ max: 24, min: 24 }),
+  (req, res, next) => {
+    const errors = validationResult(req);
 
-  TemplateModel.find({ userId: userId })
-    .exec()
-    .then((templates) => {
-      if (!templates)
-        return next(
-          new HttpError(
-            "Template(s) with provided user id not found",
-            StatusCodes.NOT_FOUND
-          )
-        );
-      return res.status(StatusCodes.OK).json(templates);
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
 
-router.get("/:templateId", (req, res, next) => {
+    const { userId } = req.params;
+
+    TemplateModel.find({ userId: userId })
+      .exec()
+      .then((templates) => {
+        if (!templates)
+          return next(
+            new HttpError(
+              "Template(s) with provided user id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(templates);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.get(
+  "/one/:templateId",
+  param("templateId", "Wrong template id provided or it is missing")
+    .isString()
+    .isLength({ max: 24, min: 24 }),
+  (req, res, next) => {
+    const { templateId } = req.params;
+
+    TemplateModel.findById(templateId)
+      .exec()
+      .then((template) => {
+        if (!template)
+          return next(
+            new HttpError(
+              "Template with provided id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(template);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.delete("/:templateId", async (req, res, next) => {
   const { templateId } = req.params;
 
-  TemplateModel.findById(templateId)
-    .exec()
-    .then((template) => {
-      if (!template)
-        return next(
-          new HttpError(
-            "Template with provided id not found",
-            StatusCodes.NOT_FOUND
-          )
-        );
-      return res.status(StatusCodes.OK).json(template);
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
 
-router.delete("/:templateId", (req, res, next) => {
-  const { templateId } = req.params;
+  try {
+    const template = await TemplateModel.findById(templateId).exec();
+    if (!template) {
+      return next(
+        new HttpError(
+          "Template with provided id not found",
+          StatusCodes.NOT_FOUND
+        )
+      );
+    }
 
-  TemplateModel.findByIdAndDelete(templateId)
-    .exec()
-    .then((template) => {
-      if (!template)
-        return next(
-          new HttpError(
-            "Template with provided id not found",
-            StatusCodes.NOT_FOUND
-          )
-        );
-      return res
-        .status(StatusCodes.OK)
-        .json({ success: true, message: "Template Deleted" });
-    })
-    .catch((error) => {
-      return next(error);
-    });
+    if (template.userId.toString() !== userId) {
+      return next(
+        new HttpError(
+          "Cannot delete template, only user who created template can delete it",
+          StatusCodes.UNAUTHORIZED
+        )
+      );
+    }
+
+    const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+    const custom_logo = template.custom_logo.split("/").at(-1);
+
+    await unlink(imagePath + custom_logo);
+    await TemplateModel.deleteOne({ _id: templateId }).exec();
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: "Template Deleted" });
+  } catch (error) {
+    return next(
+      new HttpError(
+        "Template does not exist or something went wrong",
+        StatusCodes.INTERNAL_SERVER_ERROR
+      )
+    );
+  }
 });
 
 router.delete("/user/:userId", (req, res, next) => {
