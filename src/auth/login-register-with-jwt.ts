@@ -5,9 +5,10 @@ import express, { NextFunction, Request, Response } from "express";
 import User from "../model/user.model";
 import HttpError from "../model/http-error.model";
 
-import issueJWT from "../util/issueJWT";
 import { validateHash } from "../util/validateHash";
 import { hashPassword } from "../util/hashPassword";
+import issueRefreshToken from "../util/issueRefreshToken";
+import issueAccessToken from "../util/issueAccessToken";
 
 const router = express.Router();
 
@@ -56,16 +57,23 @@ router.post(
       });
     }
 
-    const jwt = issueJWT(user);
+    const accessToken = issueAccessToken(user);
     const accessJwt = {
-      ...jwt,
-      token: `Bearer ${jwt.token}`,
+      ...accessToken,
+      token: `Bearer ${accessToken.token}`,
     };
+
+    const refreshToken = issueRefreshToken(user);
+
     return res
-      .cookie("jwt", jwt.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "dev" ? false : true,
-      })
+      .cookie(
+        "jwt",
+        { access: accessToken.token, refresh: refreshToken },
+        {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "dev" ? false : true,
+        }
+      )
       .json(accessJwt);
   }
 );

@@ -10,17 +10,16 @@ const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
 const errorLoginUrl = `${clientUrl}/login/error`;
 
 router.get(
-  "/login/google",
-  passport.authenticate("google", {
-    scope: ["profile", "email"],
-    prompt: "select_account",
+  "/login/facebook",
+  passport.authenticate("facebook", {
+    // scope: ["public_profile", "email"],
   })
 );
 
 router.get(
-  "/google/callback",
-  passport.authenticate("google", {
-    failureMessage: "Cannot login using google, try again later",
+  "/facebook/callback",
+  passport.authenticate("facebook", {
+    failureMessage: "Cannot login using facebook, try again later",
     failureRedirect: errorLoginUrl,
     passReqToCallback: true,
     session: false,

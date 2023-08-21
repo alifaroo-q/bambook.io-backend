@@ -1,7 +1,7 @@
 import express from "express";
 
-import template from "./TemplateApi/template";
 import page from "./PageApi/page";
+import template from "./TemplateApi/template";
 
 const router = express.Router();
 

@@ -1,15 +1,15 @@
 import passport from "passport";
+import { Request } from "express";
+import { StatusCodes } from "http-status-codes";
 import { ExtractJwt, Strategy, VerifiedCallback } from "passport-jwt";
 
 import User from "../model/user.model";
-import { Request } from "express";
 import HttpError from "../model/http-error.model";
-import { StatusCodes } from "http-status-codes";
 
 const cookieExtractor = function (req: Request) {
   let token = null;
-  if (req && req.cookies) {
-    token = req.cookies["jwt"];
+  if (req && req.cookies && req.cookies["jwt"]) {
+    token = req.cookies["jwt"].access;
   }
   return token;
 };

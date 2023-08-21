@@ -1,5 +1,5 @@
 import passport from "passport";
 
-const requireJwtAuth = passport.authenticate("jwt", { session: false });
+const JWTAuthMiddleware = passport.authenticate("jwt", { session: false });
 
-export default requireJwtAuth;
+export default JWTAuthMiddleware;

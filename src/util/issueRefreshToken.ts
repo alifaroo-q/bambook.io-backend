@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-const issueJWT = (user: any) => {
+const issueRefreshToken = (user: any) => {
   const _id = user._id;
   const expiresInMS = 7 * 24 * 60 * 60 * 1000; // days * hours * minutes * seconds * milliseconds
 
@@ -9,15 +9,12 @@ const issueJWT = (user: any) => {
     iat: Date.now(),
   };
 
-  const signedToken = jwt.sign(payload, process.env.JWT_SECRET, {
+  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
     expiresIn: expiresInMS,
     algorithm: "HS256",
   });
 
-  return {
-    token: signedToken,
-    expiresInMS,
-  };
+  return refreshToken;
 };
 
-export default issueJWT;
+export default issueRefreshToken;

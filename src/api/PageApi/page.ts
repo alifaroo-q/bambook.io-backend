@@ -1,7 +1,7 @@
 import z from "zod";
-import { unlink } from "fs/promises";
 import path from "path";
 import multer from "multer";
+import { unlink } from "fs/promises";
 import { randomBytes } from "crypto";
 import { StatusCodes } from "http-status-codes";
 import { check, validationResult } from "express-validator";
@@ -105,6 +105,8 @@ const NEW_PAGE_VALIDATORS = [
     }),
 ];
 
+// todo: validate image uploads using middleware
+
 router.post(
   "/",
   upload.fields([
@@ -159,6 +161,20 @@ router.get("/all", (req, res, next) => {
     .exec()
     .then((page) => {
       return res.status(StatusCodes.OK).json(page);
+    })
+    .catch(() => {
+      return next(
+        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+      );
+    });
+});
+
+router.get("/all/min", (req, res, next) => {
+  PageModel.find()
+    .select({ url: 1, title: 1 })
+    .exec()
+    .then((pages) => {
+      return res.status(StatusCodes.OK).json(pages);
     })
     .catch(() => {
       return next(

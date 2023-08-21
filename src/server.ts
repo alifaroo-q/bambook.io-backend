@@ -10,17 +10,20 @@ import cookieParser from "cookie-parser";
 import { StatusCodes } from "http-status-codes";
 
 import connectDB from "./db/mongodb";
+
 import ErrorMiddleware from "./middleware/error.middleware";
 import RouteNotFoundMiddleware from "./middleware/not-found.middleware";
+import RefreshTokenMiddleware from "./middleware/refresh-token.middleware";
 
 import "dotenv/config";
 import "./auth/passport-jwt";
 import "./auth/passport-google";
+import "./auth/passport-facebook";
 
 import api from "./api";
 import auth from "./auth";
-import requireJwtAuth from "./middleware/jwt-auth.middleware";
 import HttpError from "./model/http-error.model";
+import JWTAuthMiddleware from "./middleware/jwt-auth.middleware";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -41,9 +44,9 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", auth);
-app.use("/api", requireJwtAuth, api);
+app.use("/api", JWTAuthMiddleware, api);
 
-app.get("/uploads/:filename", requireJwtAuth, (req, res, next) => {
+app.get("/uploads/:filename", JWTAuthMiddleware, (req, res, next) => {
   const { filename } = req.params;
   const imagePath = path.join(__dirname, "./uploads/" + filename);
 
@@ -54,6 +57,8 @@ app.get("/uploads/:filename", requireJwtAuth, (req, res, next) => {
   });
 });
 
+app.post("/refreshToken", RefreshTokenMiddleware);
+
 app.use(RouteNotFoundMiddleware);
 app.use(ErrorMiddleware);
 
@@ -61,9 +66,9 @@ const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);
     console.info("connected to database");
-    app.listen(PORT, () =>
-      console.info(`server running at http://localhost:${PORT}`)
-    );
+    app.listen(PORT, () => {
+      console.info(`server running at http://localhost:${PORT}`);
+    });
   } catch (err) {
     console.error(err);
   }
