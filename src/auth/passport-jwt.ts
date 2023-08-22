@@ -18,8 +18,8 @@ passport.use(
   new Strategy(
     {
       jwtFromRequest: ExtractJwt.fromExtractors([
-        cookieExtractor,
         ExtractJwt.fromAuthHeaderWithScheme("Bearer"),
+        cookieExtractor,
       ]),
       secretOrKey: process.env.JWT_SECRET,
       algorithms: ["HS256"],

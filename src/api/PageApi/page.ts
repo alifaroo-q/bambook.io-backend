@@ -1,10 +1,11 @@
 import z from "zod";
 import path from "path";
 import multer from "multer";
+import mongoose from "mongoose";
 import { unlink } from "fs/promises";
 import { randomBytes } from "crypto";
 import { StatusCodes } from "http-status-codes";
-import { check, validationResult } from "express-validator";
+import { check, param, validationResult } from "express-validator";
 import express, { NextFunction, Request, Response } from "express";
 
 import PageModel from "../../model/page.model";
@@ -105,7 +106,41 @@ const NEW_PAGE_VALIDATORS = [
     }),
 ];
 
-// todo: validate image uploads using middleware
+const ValidateImages = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  // @ts-ignore
+  const custom_logo = req.files.custom_logo ? req.files.custom_logo[0].filename : null;
+  // @ts-ignore
+  const footer_logo = req.files.footer_logo ? req.files.footer_logo[0].filename : null;
+
+  const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+  const error = new HttpError(
+    "custom_logo and footer_logo, both are required",
+    StatusCodes.BAD_REQUEST
+  );
+
+  try {
+    if (custom_logo) {
+      if (footer_logo) {
+        return next();
+      } else {
+        await unlink(imagePath + custom_logo);
+        return next(error);
+      }
+    } else {
+      if (footer_logo) {
+        await unlink(imagePath + footer_logo);
+        return next(error);
+      }
+    }
+    return next(error);
+  } catch (error) {
+    return next(error);
+  }
+};
 
 router.post(
   "/",
@@ -113,6 +148,7 @@ router.post(
     { name: "custom_logo", maxCount: 1 },
     { name: "footer_logo", maxCount: 1 },
   ]),
+  ValidateImages,
   NEW_PAGE_VALIDATORS,
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -183,115 +219,175 @@ router.get("/all/min", (req, res, next) => {
     });
 });
 
-router.get("/user/:userId", (req, res, next) => {
-  const { userId } = req.params;
+router.get(
+  "/user/:userId",
+  param("userId", "Wrong user id, please try again")
+    .isString()
+    .custom((userId) => {
+      return mongoose.Types.ObjectId.isValid(userId);
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req);
 
-  PageModel.find({ userId: userId })
-    .exec()
-    .then((page) => {
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { userId } = req.params;
+
+    PageModel.find({ userId: userId })
+      .exec()
+      .then((page) => {
+        if (!page)
+          return next(
+            new HttpError(
+              "Page(s) with provided user id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(page);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.get(
+  "/:pageId",
+  param("pageId", "Wrong page id, please try again")
+    .isString()
+    .custom((pageId) => {
+      return mongoose.Types.ObjectId.isValid(pageId);
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { pageId } = req.params;
+
+    PageModel.findById(pageId)
+      .exec()
+      .then((page) => {
+        if (!page)
+          return next(
+            new HttpError(
+              "Page with provided id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(page);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.delete(
+  "/:pageId",
+  param("pageId", "Wrong page id, please try again")
+    .isString()
+    .custom((pageId) => {
+      return mongoose.Types.ObjectId.isValid(pageId);
+    }),
+  async (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { pageId } = req.params;
+
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
+
+    try {
+      const page = await PageModel.findById(pageId).exec();
       if (!page)
         return next(
           new HttpError(
-            "Page(s) with provided user id not found",
+            "Template with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
-      return res.status(StatusCodes.OK).json(page);
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
 
-router.get("/:pageId", (req, res, next) => {
-  const { pageId } = req.params;
-
-  PageModel.findById(pageId)
-    .exec()
-    .then((page) => {
-      if (!page)
+      if (page.userId.toString() !== userId) {
         return next(
           new HttpError(
-            "Page with provided id not found",
-            StatusCodes.NOT_FOUND
+            "Cannot delete page, only user who created page can delete it",
+            StatusCodes.UNAUTHORIZED
           )
         );
-      return res.status(StatusCodes.OK).json(page);
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
+      }
 
-router.delete("/:pageId", async (req, res, next) => {
-  const { pageId } = req.params;
+      const imagePath = path.resolve(__dirname, "../../uploads") + "/";
 
-  // @ts-ignore
-  const userId = req.user.toObject({ getters: true }).id;
+      const custom_logo = imagePath + page.custom_logo.split("/").at(-1);
+      const footer_logo = imagePath + page.footer_logo.split("/").at(-1);
 
-  try {
-    const page = await PageModel.findById(pageId).exec();
-    if (!page)
+      const images = [custom_logo, footer_logo];
+
+      const imagesDeletePromise = images.map((image) => unlink(image));
+      Promise.all(imagesDeletePromise);
+      await PageModel.deleteOne({ _id: pageId }).exec();
+
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Page Deleted" });
+    } catch (error) {
       return next(
         new HttpError(
-          "Template with provided id not found",
-          StatusCodes.NOT_FOUND
-        )
-      );
-
-    if (page.userId.toString() !== userId) {
-      return next(
-        new HttpError(
-          "Cannot delete page, only user who created page can delete it",
-          StatusCodes.UNAUTHORIZED
+          "Page does not exist or something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
         )
       );
     }
-
-    const imagePath = path.resolve(__dirname, "../../uploads") + "/";
-
-    const custom_logo = imagePath + page.custom_logo.split("/").at(-1);
-    const footer_logo = imagePath + page.footer_logo.split("/").at(-1);
-
-    const images = [custom_logo, footer_logo];
-
-    const imagesDeletePromise = images.map((image) => unlink(image));
-    Promise.all(imagesDeletePromise);
-    await PageModel.deleteOne({ _id: pageId }).exec();
-
-    return res
-      .status(StatusCodes.OK)
-      .json({ success: true, message: "Page Deleted" });
-  } catch (error) {
-    return next(
-      new HttpError(
-        "Page does not exist or something went wrong",
-        StatusCodes.INTERNAL_SERVER_ERROR
-      )
-    );
   }
-});
+);
 
-router.delete("/user/:userId", (req, res, next) => {
-  const { userId } = req.params;
+router.delete(
+  "/user/:userId",
+  param("userId", "Wrong user id, please try again")
+    .isString()
+    .custom((userId) => {
+      return mongoose.Types.ObjectId.isValid(userId);
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req);
 
-  PageModel.deleteMany({ userId: userId })
-    .exec()
-    .then((pages) => {
-      if (pages.deletedCount === 0)
-        return next(
-          new HttpError(
-            "Page(s) with provided user id not found",
-            StatusCodes.NOT_FOUND
-          )
-        );
-      return res
-        .status(StatusCodes.OK)
-        .json({ success: true, message: "Page(s) Deleted" });
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { userId } = req.params;
+
+    PageModel.deleteMany({ userId: userId })
+      .exec()
+      .then((pages) => {
+        if (pages.deletedCount === 0)
+          return next(
+            new HttpError(
+              "Page(s) with provided user id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res
+          .status(StatusCodes.OK)
+          .json({ success: true, message: "Page(s) Deleted" });
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
 
 export default router;

@@ -1,14 +1,15 @@
 import z from "zod";
 import path from "path";
 import multer from "multer";
+import mongoose from "mongoose";
 import { randomBytes } from "crypto";
 import { unlink } from "fs/promises";
 import { StatusCodes } from "http-status-codes";
 import { check, validationResult, param } from "express-validator";
 import express, { NextFunction, Request, Response } from "express";
 
-import TemplateModel from "../../model/template.model";
 import HttpError from "../../model/http-error.model";
+import TemplateModel from "../../model/template.model";
 
 const router = express.Router();
 
@@ -163,9 +164,11 @@ router.get("/all/min", (req, res, next) => {
 
 router.get(
   "/user/:userId",
-  param("userId", "Wrong user id provided or it is missing")
+  param("userId", "Wrong user id, please try again")
     .isString()
-    .isLength({ max: 24, min: 24 }),
+    .custom((userId) => {
+      return mongoose.Types.ObjectId.isValid(userId);
+    }),
   (req, res, next) => {
     const errors = validationResult(req);
 
@@ -196,12 +199,20 @@ router.get(
 
 router.get(
   "/one/:templateId",
-  param("templateId", "Wrong template id provided or it is missing")
+  param("templateId", "Wrong template id, please try again")
     .isString()
-    .isLength({ max: 24, min: 24 }),
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
   (req, res, next) => {
-    const { templateId } = req.params;
+    const errors = validationResult(req);
 
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { templateId } = req.params;
     TemplateModel.findById(templateId)
       .exec()
       .then((template) => {
@@ -220,71 +231,101 @@ router.get(
   }
 );
 
-router.delete("/:templateId", async (req, res, next) => {
-  const { templateId } = req.params;
+router.delete(
+  "/:templateId",
+  param("templateId", "Wrong template id, please try again")
+    .isString()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
+  async (req, res, next) => {
+    const errors = validationResult(req);
 
-  // @ts-ignore
-  const userId = req.user.toObject({ getters: true }).id;
-
-  try {
-    const template = await TemplateModel.findById(templateId).exec();
-    if (!template) {
-      return next(
-        new HttpError(
-          "Template with provided id not found",
-          StatusCodes.NOT_FOUND
-        )
-      );
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
-    if (template.userId.toString() !== userId) {
-      return next(
-        new HttpError(
-          "Cannot delete template, only user who created template can delete it",
-          StatusCodes.UNAUTHORIZED
-        )
-      );
-    }
+    const { templateId } = req.params;
 
-    const imagePath = path.resolve(__dirname, "../../uploads") + "/";
-    const custom_logo = template.custom_logo.split("/").at(-1);
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
 
-    await unlink(imagePath + custom_logo);
-    await TemplateModel.deleteOne({ _id: templateId }).exec();
-
-    return res
-      .status(StatusCodes.OK)
-      .json({ success: true, message: "Template Deleted" });
-  } catch (error) {
-    return next(
-      new HttpError(
-        "Template does not exist or something went wrong",
-        StatusCodes.INTERNAL_SERVER_ERROR
-      )
-    );
-  }
-});
-
-router.delete("/user/:userId", (req, res, next) => {
-  const { userId } = req.params;
-
-  TemplateModel.deleteMany({ userId: userId })
-    .exec()
-    .then((templates) => {
-      if (templates.deletedCount === 0)
+    try {
+      const template = await TemplateModel.findById(templateId).exec();
+      if (!template) {
         return next(
           new HttpError(
-            "Template(s) with provided user id not found",
+            "Template with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
+      }
+
+      if (template.userId.toString() !== userId) {
+        return next(
+          new HttpError(
+            "Cannot delete template, only user who created template can delete it",
+            StatusCodes.UNAUTHORIZED
+          )
+        );
+      }
+
+      const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+      const custom_logo = template.custom_logo.split("/").at(-1);
+
+      await unlink(imagePath + custom_logo);
+      await TemplateModel.deleteOne({ _id: templateId }).exec();
+
       return res
         .status(StatusCodes.OK)
-        .json({ success: true, message: "Template(s) Deleted" });
-    })
-    .catch((error) => {
-      return next(error);
-    });
-});
+        .json({ success: true, message: "Template Deleted" });
+    } catch (error) {
+      return next(
+        new HttpError(
+          "Template does not exist or something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
+    }
+  }
+);
+
+router.delete(
+  "/user/:userId",
+  param("userId", "Wrong user id, please try again")
+    .isString()
+    .custom((userId) => {
+      return mongoose.Types.ObjectId.isValid(userId)
+    }),
+  async (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { userId } = req.params;
+
+    TemplateModel.deleteMany({ userId: userId })
+      .exec()
+      .then((templates) => {
+        if (templates.deletedCount === 0)
+          return next(
+            new HttpError(
+              "Template(s) with provided user id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res
+          .status(StatusCodes.OK)
+          .json({ success: true, message: "Template(s) Deleted" });
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
 
 export default router;

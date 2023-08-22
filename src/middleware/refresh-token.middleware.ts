@@ -16,14 +16,14 @@ const RefreshTokenMiddleware = (
     (error: VerifyErrors, decoded: JwtPayload) => {
       if (error) {
         return next(
-          new HttpError("Wrong refresh token", StatusCodes.UNAUTHORIZED)
+          new HttpError("Invalid refresh token", StatusCodes.UNAUTHORIZED)
         );
       } else {
         const payload = {
           sub: decoded.sub,
           iat: Date.now(),
         };
-        const expiresInMS = 1 * 24 * 60 * 60 * 1000; // days * hours * minutes * seconds * milliseconds
+        const expiresInMS = 7 * 24 * 60 * 60 * 1000; // days * hours * minutes * seconds * milliseconds
 
         const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
           expiresIn: expiresInMS,
