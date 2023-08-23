@@ -35,6 +35,8 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(morgan("common"));
 app.use(helmet());
+
+// add allowed origins
 app.use(cors({ origin: "*", credentials: true }));
 
 app.use(passport.initialize());

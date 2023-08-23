@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const fileName = file.originalname.toLowerCase().split(" ").join("-");
-    cb(null, `${randomBytes(5).toString("hex")}-${fileName}`);
+    cb(null, `${randomBytes(10).toString("hex")}-${fileName}`);
   },
 });
 
@@ -54,7 +54,8 @@ const upload = multer({
 const NEW_TEMPLATE_VALIDATORS = [
   check("url", "url value must be a string or it is missing")
     .isString()
-    .notEmpty(),
+    .notEmpty()
+    .isURL(),
   check("font_family", "font_family value must be a string or it is missing")
     .isString()
     .notEmpty(),
@@ -64,21 +65,38 @@ const NEW_TEMPLATE_VALIDATORS = [
   )
     .isString()
     .notEmpty(),
-  check("header", "header value must be a string or it is missing")
+  check("header", "header value must be true or false or it is missing")
     .isString()
+    .notEmpty()
+    .toLowerCase()
+    .isIn(["true", "false"])
+    .toBoolean(),
+  check("pagination", "pagination value must be true or false or it is missing")
+    .isString()
+    .notEmpty()
+    .toLowerCase()
+    .isIn(["true", "false"])
     .toBoolean(),
   check("title", "title value must be a string or it is missing")
     .isString()
     .notEmpty(),
-  check("links", "links value must a valid links array or it is missing")
+  check("links", "links value must be a valid links array or it is missing")
     .isString()
+    .notEmpty()
     .customSanitizer((value) => {
-      const payload: [] = JSON.parse(value);
-      return linksArray.parse(payload);
+      try {
+        const payload: [] = JSON.parse(value);
+        return linksArray.parse(payload);
+      } catch (error) {
+        throw new HttpError(
+          "links value must be a valid links array",
+          StatusCodes.UNPROCESSABLE_ENTITY
+        );
+      }
     }),
 ];
 
-const validateCustomLogo = (
+const ValidateCustomLogo = (
   req: Request,
   res: Response,
   next: NextFunction
@@ -96,7 +114,7 @@ const validateCustomLogo = (
 router.post(
   "/",
   upload.single("custom_logo"),
-  validateCustomLogo,
+  ValidateCustomLogo,
   NEW_TEMPLATE_VALIDATORS,
   (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
@@ -119,6 +137,7 @@ router.post(
       font_family: req.body.font_family,
       corner_styles: req.body.corner_styles,
       header: req.body.header,
+      pagination: req.body.pagination,
       title: req.body.title,
       links: req.body.links,
       userId: userId,
@@ -163,21 +182,11 @@ router.get("/all/min", (req, res, next) => {
 });
 
 router.get(
-  "/user/:userId",
-  param("userId", "Wrong user id, please try again")
-    .isString()
-    .custom((userId) => {
-      return mongoose.Types.ObjectId.isValid(userId);
-    }),
+  "/user/all",
   (req, res, next) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      const err = errors.array()[0];
-      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
-    }
-
-    const { userId } = req.params;
+    
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
 
     TemplateModel.find({ userId: userId })
       .exec()
@@ -271,10 +280,10 @@ router.delete(
         );
       }
 
-      const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
       const custom_logo = template.custom_logo.split("/").at(-1);
 
-      await unlink(imagePath + custom_logo);
+      await unlink(UploadsPath + custom_logo);
       await TemplateModel.deleteOne({ _id: templateId }).exec();
 
       return res
@@ -292,21 +301,11 @@ router.delete(
 );
 
 router.delete(
-  "/user/:userId",
-  param("userId", "Wrong user id, please try again")
-    .isString()
-    .custom((userId) => {
-      return mongoose.Types.ObjectId.isValid(userId)
-    }),
+  "/user/all",
   async (req, res, next) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      const err = errors.array()[0];
-      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
-    }
-
-    const { userId } = req.params;
+    
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
 
     TemplateModel.deleteMany({ userId: userId })
       .exec()
@@ -325,6 +324,145 @@ router.delete(
       .catch((error) => {
         return next(error);
       });
+  }
+);
+
+const UPDATE_TEMPLATE_VALIDATORS = [
+  check("url", "url value must be a valid url")
+    .optional()
+    .isString()
+    .notEmpty()
+    .isURL(),
+  check("font_family", "font_family value is missing")
+    .optional()
+    .isString()
+    .notEmpty(),
+  check("corner_styles", "corner_styles value is missing")
+    .optional()
+    .isString()
+    .notEmpty(),
+  check("header", "header value must be true or false")
+    .optional()
+    .isString()
+    .notEmpty()
+    .toLowerCase()
+    .isIn(["true", "false"])
+    .toBoolean(),
+  check("pagination", "pagination value must be true or false")
+    .optional()
+    .isString()
+    .notEmpty()
+    .toLowerCase()
+    .isIn(["true", "false"])
+    .toBoolean(),
+  check("title", "title value is missing").optional().isString().notEmpty(),
+  check("links", "links value must be a valid links array or it is missing")
+    .optional()
+    .isString()
+    .notEmpty()
+    .customSanitizer((value) => {
+      try {
+        const payload: [] = JSON.parse(value);
+        return linksArray.parse(payload);
+      } catch (error) {
+        throw new HttpError(
+          "links value must be a valid links array",
+          StatusCodes.UNPROCESSABLE_ENTITY
+        );
+      }
+    }),
+];
+
+const ValidateRequest = (req: Request, res: Response, next: NextFunction) => {
+  const requestMap = [
+    "url",
+    "font_family",
+    "corner_styles",
+    "title",
+    "header",
+    "links",
+    "pagination",
+  ];
+  const request = Object.keys(req.body);
+  const result = request.every((val) => requestMap.includes(val));
+
+  if (result) return next();
+  else
+    return next(
+      new HttpError(
+        "Unknown field detected, please only enter valid field(s)",
+        StatusCodes.BAD_REQUEST
+      )
+    );
+};
+
+router.patch(
+  "/:templateId",
+  upload.single("custom_logo"),
+  param("templateId", "Wrong template id, please try again")
+    .isString()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
+  ValidateRequest,
+  UPDATE_TEMPLATE_VALIDATORS,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { templateId } = req.params;
+
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
+
+    try {
+      const template = await TemplateModel.findById(templateId).exec();
+      if (!template) {
+        return next(
+          new HttpError(
+            "Template with provided id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      }
+
+      if (template.userId.toString() !== userId) {
+        return next(
+          new HttpError(
+            "Cannot update template, only user who created template can update it",
+            StatusCodes.UNAUTHORIZED
+          )
+        );
+      }
+
+      await TemplateModel.updateOne({ _id: templateId }, req.body)
+        .exec()
+        .then((template) => {
+          if (template.acknowledged) {
+            return res
+              .status(StatusCodes.OK)
+              .json({ success: true, message: "Template Updated",});
+          } else {
+            return next(
+              new HttpError(
+                "Template update failed, something went wrong",
+                StatusCodes.INTERNAL_SERVER_ERROR
+              )
+            );
+          }
+        });
+    } catch (error) {
+      return next(
+        new HttpError(
+          "Template does not exist or something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
+    }
   }
 );
 

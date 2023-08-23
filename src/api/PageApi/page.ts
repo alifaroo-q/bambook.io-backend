@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const fileName = file.originalname.toLowerCase().split(" ").join("-");
-    cb(null, `${Date.now() + randomBytes(5).toString("hex")}-${fileName}`);
+    cb(null, `${Date.now() + randomBytes(10).toString("hex")}-${fileName}`);
   },
 });
 
@@ -92,8 +92,15 @@ const NEW_PAGE_VALIDATORS = [
   check("theme", "theme value must a valid theme object or it is missing")
     .isString()
     .customSanitizer((value) => {
-      const payload: [] = JSON.parse(value);
-      return themeSchema.parse(payload);
+      try {
+        const payload: [] = JSON.parse(value);
+        return themeSchema.parse(payload);
+      } catch (error) {
+        throw new HttpError(
+          "theme value must be a valid theme object",
+          StatusCodes.UNPROCESSABLE_ENTITY
+        );
+      }
     }),
   check(
     "footer_config",
@@ -101,8 +108,15 @@ const NEW_PAGE_VALIDATORS = [
   )
     .isString()
     .customSanitizer((value) => {
-      const payload: [] = JSON.parse(value);
-      return footerConfigSchema.parse(payload);
+      try {
+        const payload: [] = JSON.parse(value);
+        return footerConfigSchema.parse(payload);
+      } catch (error) {
+        throw new HttpError(
+          "footer_config value must be a valid footer_config object",
+          StatusCodes.UNPROCESSABLE_ENTITY
+        );
+      }
     }),
 ];
 
@@ -113,6 +127,7 @@ const ValidateImages = async (
 ) => {
   // @ts-ignore
   const custom_logo = req.files.custom_logo ? req.files.custom_logo[0].filename : null;
+
   // @ts-ignore
   const footer_logo = req.files.footer_logo ? req.files.footer_logo[0].filename : null;
 
@@ -220,21 +235,11 @@ router.get("/all/min", (req, res, next) => {
 });
 
 router.get(
-  "/user/:userId",
-  param("userId", "Wrong user id, please try again")
-    .isString()
-    .custom((userId) => {
-      return mongoose.Types.ObjectId.isValid(userId);
-    }),
+  "/user/all",
   (req, res, next) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      const err = errors.array()[0];
-      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
-    }
-
-    const { userId } = req.params;
+    
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
 
     PageModel.find({ userId: userId })
       .exec()
@@ -255,7 +260,7 @@ router.get(
 );
 
 router.get(
-  "/:pageId",
+  "/one/:pageId",
   param("pageId", "Wrong page id, please try again")
     .isString()
     .custom((pageId) => {
@@ -328,15 +333,15 @@ router.delete(
         );
       }
 
-      const imagePath = path.resolve(__dirname, "../../uploads") + "/";
+      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
 
-      const custom_logo = imagePath + page.custom_logo.split("/").at(-1);
-      const footer_logo = imagePath + page.footer_logo.split("/").at(-1);
+      const allImagesPath = [
+        `${UploadsPath + page.custom_logo.split("/").at(-1)}`,
+        `${UploadsPath + page.footer_logo.split("/").at(-1)}`,
+      ];
 
-      const images = [custom_logo, footer_logo];
-
-      const imagesDeletePromise = images.map((image) => unlink(image));
-      Promise.all(imagesDeletePromise);
+      const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
+      Promise.all(allImagesDelete);
       await PageModel.deleteOne({ _id: pageId }).exec();
 
       return res
@@ -354,21 +359,13 @@ router.delete(
 );
 
 router.delete(
-  "/user/:userId",
-  param("userId", "Wrong user id, please try again")
-    .isString()
-    .custom((userId) => {
-      return mongoose.Types.ObjectId.isValid(userId);
-    }),
-  (req, res, next) => {
-    const errors = validationResult(req);
+  "/user/all",
+  async (req, res, next) => {
+    
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
 
-    if (!errors.isEmpty()) {
-      const err = errors.array()[0];
-      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
-    }
-
-    const { userId } = req.params;
+    const pages = await PageModel.find({ userId: userId }).exec();
 
     PageModel.deleteMany({ userId: userId })
       .exec()
@@ -380,13 +377,32 @@ router.delete(
               StatusCodes.NOT_FOUND
             )
           );
-        return res
-          .status(StatusCodes.OK)
-          .json({ success: true, message: "Page(s) Deleted" });
       })
       .catch((error) => {
         return next(error);
       });
+
+    try {
+      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
+      let allImagesPath: string[] = [];
+
+      pages.forEach((page) => {
+        allImagesPath.push(`${UploadsPath}${page.custom_logo.split("/").at(-1)}`);
+        allImagesPath.push(`${UploadsPath}${page.footer_logo.split("/").at(-1)}`);
+      });
+
+      const allImagesDelete = allImagesPath.map((imagePath) =>
+        unlink(imagePath)
+      );
+
+      Promise.all(allImagesDelete);
+    } catch (error) {
+      return next(error);
+    }
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: "Page(s) Deleted" });
   }
 );
 
