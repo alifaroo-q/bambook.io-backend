@@ -60,7 +60,7 @@ const NEW_TEMPLATE_VALIDATORS = [
   check("url", "url value must be a string or it is missing")
     .isString()
     .notEmpty()
-    .isURL(),
+    .isURL({ require_protocol: false, require_tld: false }),
   check("font_family", "font_family value must be a string or it is missing")
     .isString()
     .notEmpty(),
@@ -338,7 +338,7 @@ const UPDATE_TEMPLATE_VALIDATORS = [
     .optional()
     .isString()
     .notEmpty()
-    .isURL(),
+    .isURL({ require_protocol: false, require_tld: false }),
   check("font_family", "font_family value is missing")
     .optional()
     .isString()
