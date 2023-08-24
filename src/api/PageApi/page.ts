@@ -12,6 +12,8 @@ import PageModel from "../../model/page.model";
 import HttpError from "../../model/http-error.model";
 
 const router = express.Router();
+const UPLOADS = path.resolve(__dirname, "../../uploads") + "/";
+
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -157,6 +159,8 @@ const ValidateImages = async (
   }
 };
 
+// TODO: delete images on failed validation
+
 router.post(
   "/",
   upload.fields([
@@ -170,6 +174,7 @@ router.post(
 
     if (!errors.isEmpty()) {
       const err = errors.array()[0];
+      // ! delete images here
       return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
@@ -234,30 +239,26 @@ router.get("/all/min", (req, res, next) => {
     });
 });
 
-router.get(
-  "/user/all",
-  (req, res, next) => {
-    
-    // @ts-ignore
-    const userId = req.user.toObject({ getters: true }).id;
+router.get("/user/all", (req, res, next) => {
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
 
-    PageModel.find({ userId: userId })
-      .exec()
-      .then((page) => {
-        if (!page)
-          return next(
-            new HttpError(
-              "Page(s) with provided user id not found",
-              StatusCodes.NOT_FOUND
-            )
-          );
-        return res.status(StatusCodes.OK).json(page);
-      })
-      .catch((error) => {
-        return next(error);
-      });
-  }
-);
+  PageModel.find({ userId: userId })
+    .exec()
+    .then((page) => {
+      if (!page)
+        return next(
+          new HttpError(
+            "Page(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res.status(StatusCodes.OK).json(page);
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
 
 router.get(
   "/one/:pageId",
@@ -333,14 +334,14 @@ router.delete(
         );
       }
 
-      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
-
       const allImagesPath = [
-        `${UploadsPath + page.custom_logo.split("/").at(-1)}`,
-        `${UploadsPath + page.footer_logo.split("/").at(-1)}`,
+        `${UPLOADS + page.custom_logo.split("/").at(-1)}`,
+        `${UPLOADS + page.footer_logo.split("/").at(-1)}`,
       ];
 
-      const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
+      const allImagesDelete = allImagesPath.map((imagePath) =>
+        unlink(imagePath)
+      );
       Promise.all(allImagesDelete);
       await PageModel.deleteOne({ _id: pageId }).exec();
 
@@ -358,52 +359,48 @@ router.delete(
   }
 );
 
-router.delete(
-  "/user/all",
-  async (req, res, next) => {
-    
-    // @ts-ignore
-    const userId = req.user.toObject({ getters: true }).id;
+router.delete("/user/all", async (req, res, next) => {
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
 
-    const pages = await PageModel.find({ userId: userId }).exec();
+  const pages = await PageModel.find({ userId: userId }).exec();
 
-    PageModel.deleteMany({ userId: userId })
-      .exec()
-      .then((pages) => {
-        if (pages.deletedCount === 0)
-          return next(
-            new HttpError(
-              "Page(s) with provided user id not found",
-              StatusCodes.NOT_FOUND
-            )
-          );
-      })
-      .catch((error) => {
-        return next(error);
-      });
-
-    try {
-      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
-      let allImagesPath: string[] = [];
-
-      pages.forEach((page) => {
-        allImagesPath.push(`${UploadsPath}${page.custom_logo.split("/").at(-1)}`);
-        allImagesPath.push(`${UploadsPath}${page.footer_logo.split("/").at(-1)}`);
-      });
-
-      const allImagesDelete = allImagesPath.map((imagePath) =>
-        unlink(imagePath)
-      );
-
-      Promise.all(allImagesDelete);
-    } catch (error) {
+  PageModel.deleteMany({ userId: userId })
+    .exec()
+    .then((pages) => {
+      if (pages.deletedCount === 0)
+        return next(
+          new HttpError(
+            "Page(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+    })
+    .catch((error) => {
       return next(error);
-    }
+    });
 
-    return res
-      .status(StatusCodes.OK)
-      .json({ success: true, message: "Page(s) Deleted" });
+  try {
+    let allImagesPath: string[] = [];
+
+    pages.forEach((page) => {
+      allImagesPath.push(`${UPLOADS}${page.custom_logo.split("/").at(-1)}`);
+      allImagesPath.push(`${UPLOADS}${page.footer_logo.split("/").at(-1)}`);
+    });
+
+    const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
+
+    Promise.all(allImagesDelete);
+  } catch (error) {
+    return next(error);
   }
-);
+
+  return res
+    .status(StatusCodes.OK)
+    .json({ success: true, message: "Page(s) Deleted" });
+});
 
 export default router;
+
+// TODO: implement patch with images and validate it
+// TODO: delete images on failed validation

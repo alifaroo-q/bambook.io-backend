@@ -12,6 +12,7 @@ import HttpError from "../../model/http-error.model";
 import TemplateModel from "../../model/template.model";
 
 const router = express.Router();
+const UPLOADS = path.resolve(__dirname, "../../uploads") + "/";
 
 const linkSchema = z.object({
   title: z.string(),
@@ -50,6 +51,10 @@ const upload = multer({
     }
   },
 });
+
+const deleteImage = async (image: string) => {
+  await unlink(UPLOADS + image);
+};
 
 const NEW_TEMPLATE_VALIDATORS = [
   check("url", "url value must be a string or it is missing")
@@ -101,8 +106,7 @@ const ValidateCustomLogo = (
   res: Response,
   next: NextFunction
 ) => {
-  const image = req.file;
-  if (image && image.fieldname === "custom_logo") return next();
+  if (req.file && req.file.fieldname === "custom_logo") return next();
   return next(
     new HttpError(
       "custom_logo must be image or it is missing",
@@ -116,21 +120,17 @@ router.post(
   upload.single("custom_logo"),
   ValidateCustomLogo,
   NEW_TEMPLATE_VALIDATORS,
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
+      await unlink(UPLOADS + req.file.filename);
       const err = errors.array()[0];
       return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
     // @ts-ignore
     const userId = req.user.toObject({ getters: true }).id;
-
-    let custom_logo: string | null;
-    if (req.file) {
-      custom_logo = `${req.hostname}/uploads/${req.file.filename}`;
-    }
 
     const templateData = {
       url: req.body.url,
@@ -141,7 +141,7 @@ router.post(
       title: req.body.title,
       links: req.body.links,
       userId: userId,
-      custom_logo: custom_logo,
+      custom_logo: `${req.hostname}/uploads/${req.file.filename}`,
     };
 
     const newTemplate = new TemplateModel(templateData);
@@ -181,30 +181,26 @@ router.get("/all/min", (req, res, next) => {
     });
 });
 
-router.get(
-  "/user/all",
-  (req, res, next) => {
-    
-    // @ts-ignore
-    const userId = req.user.toObject({ getters: true }).id;
+router.get("/user/all", (req, res, next) => {
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
 
-    TemplateModel.find({ userId: userId })
-      .exec()
-      .then((templates) => {
-        if (!templates)
-          return next(
-            new HttpError(
-              "Template(s) with provided user id not found",
-              StatusCodes.NOT_FOUND
-            )
-          );
-        return res.status(StatusCodes.OK).json(templates);
-      })
-      .catch((error) => {
-        return next(error);
-      });
-  }
-);
+  TemplateModel.find({ userId: userId })
+    .exec()
+    .then((templates) => {
+      if (!templates)
+        return next(
+          new HttpError(
+            "Template(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      return res.status(StatusCodes.OK).json(templates);
+    })
+    .catch((error) => {
+      return next(error);
+    });
+});
 
 router.get(
   "/one/:templateId",
@@ -280,10 +276,8 @@ router.delete(
         );
       }
 
-      const UploadsPath = path.resolve(__dirname, "../../uploads") + "/";
       const custom_logo = template.custom_logo.split("/").at(-1);
-
-      await unlink(UploadsPath + custom_logo);
+      await unlink(UPLOADS + custom_logo);
       await TemplateModel.deleteOne({ _id: templateId }).exec();
 
       return res
@@ -300,32 +294,44 @@ router.delete(
   }
 );
 
-router.delete(
-  "/user/all",
-  async (req, res, next) => {
-    
-    // @ts-ignore
-    const userId = req.user.toObject({ getters: true }).id;
+router.delete("/user/all", async (req, res, next) => {
+  // @ts-ignore
+  const userId = req.user.toObject({ getters: true }).id;
 
-    TemplateModel.deleteMany({ userId: userId })
-      .exec()
-      .then((templates) => {
-        if (templates.deletedCount === 0)
-          return next(
-            new HttpError(
-              "Template(s) with provided user id not found",
-              StatusCodes.NOT_FOUND
-            )
-          );
-        return res
-          .status(StatusCodes.OK)
-          .json({ success: true, message: "Template(s) Deleted" });
-      })
-      .catch((error) => {
-        return next(error);
-      });
+  const templates = await TemplateModel.find({ userId: userId }).exec();
+
+  TemplateModel.deleteMany({ userId: userId })
+    .exec()
+    .then((templates) => {
+      if (templates.deletedCount === 0)
+        return next(
+          new HttpError(
+            "Template(s) with provided user id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+    })
+    .catch((error) => {
+      return next(error);
+    });
+
+  try {
+    let allImagesPath: string[] = [];
+
+    templates.forEach((template) => {
+      allImagesPath.push(`${UPLOADS}${template.custom_logo.split("/").at(-1)}`);
+    });
+
+    const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
+    Promise.all(allImagesDelete);
+  } catch (error) {
+    return next(error);
   }
-);
+
+  return res
+    .status(StatusCodes.OK)
+    .json({ success: true, message: "Template(s) Deleted" });
+});
 
 const UPDATE_TEMPLATE_VALIDATORS = [
   check("url", "url value must be a valid url")
@@ -373,7 +379,11 @@ const UPDATE_TEMPLATE_VALIDATORS = [
     }),
 ];
 
-const ValidateRequest = (req: Request, res: Response, next: NextFunction) => {
+const ValidatePatchRequest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const requestMap = [
     "url",
     "font_family",
@@ -387,13 +397,17 @@ const ValidateRequest = (req: Request, res: Response, next: NextFunction) => {
   const result = request.every((val) => requestMap.includes(val));
 
   if (result) return next();
-  else
+  else {
+    if (req.file && req.file.fieldname === "custom_logo") {
+      await deleteImage(req.file.filename);
+    }
     return next(
       new HttpError(
         "Unknown field detected, please only enter valid field(s)",
         StatusCodes.BAD_REQUEST
       )
     );
+  }
 };
 
 router.patch(
@@ -404,12 +418,13 @@ router.patch(
     .custom((templateId) => {
       return mongoose.Types.ObjectId.isValid(templateId);
     }),
-  ValidateRequest,
+  ValidatePatchRequest,
   UPDATE_TEMPLATE_VALIDATORS,
   async (req: Request, res: Response, next: NextFunction) => {
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
+      await deleteImage(req.file.filename);
       const err = errors.array()[0];
       return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
@@ -422,6 +437,7 @@ router.patch(
     try {
       const template = await TemplateModel.findById(templateId).exec();
       if (!template) {
+        await deleteImage(req.file.filename);
         return next(
           new HttpError(
             "Template with provided id not found",
@@ -431,6 +447,7 @@ router.patch(
       }
 
       if (template.userId.toString() !== userId) {
+        await deleteImage(req.file.filename);
         return next(
           new HttpError(
             "Cannot update template, only user who created template can update it",
@@ -439,13 +456,23 @@ router.patch(
         );
       }
 
-      await TemplateModel.updateOne({ _id: templateId }, req.body)
+      let data = {
+        ...req.body,
+      };
+
+      if (req.file && req.file.fieldname === "custom_logo") {
+        const custom_logo = template.custom_logo.split("/").at(-1);
+        await deleteImage(custom_logo);
+        data["custom_logo"] = `${req.hostname}/uploads/${req.file.filename}`;
+      }
+
+      await TemplateModel.updateOne({ _id: templateId }, data)
         .exec()
         .then((template) => {
           if (template.acknowledged) {
             return res
               .status(StatusCodes.OK)
-              .json({ success: true, message: "Template Updated",});
+              .json({ success: true, message: "Template Updated" });
           } else {
             return next(
               new HttpError(
@@ -458,7 +485,7 @@ router.patch(
     } catch (error) {
       return next(
         new HttpError(
-          "Template does not exist or something went wrong",
+          "Template update failed, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );
