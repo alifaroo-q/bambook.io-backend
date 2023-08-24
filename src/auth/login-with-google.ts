@@ -38,6 +38,7 @@ router.get(
           secure: process.env.NODE_ENV === "dev" ? false : true,
         }
       )
+      .json({ accessToken, refreshToken })
       .redirect(clientUrl);
   }
 );
