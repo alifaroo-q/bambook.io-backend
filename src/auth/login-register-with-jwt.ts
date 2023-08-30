@@ -13,8 +13,10 @@ import issueAccessToken from "../util/issueAccessToken";
 const router = express.Router();
 
 const LOGIN_VALIDATORS = [
-  check("email").normalizeEmail().isEmail(),
-  check("password").notEmpty(),
+  check("email", "please enter a valid email address")
+    .normalizeEmail()
+    .isEmail(),
+  check("password", "please enter a valid password").notEmpty(),
 ];
 
 router.post(
@@ -24,12 +26,8 @@ router.post(
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-      return next(
-        new HttpError(
-          "Wrong credentials provided, please check your credentials and try again",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        )
-      );
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
     const { email, password } = req.body;
@@ -79,8 +77,12 @@ router.post(
 );
 
 const SIGNUP_VALIDATORS = [
-  check("email").normalizeEmail().isEmail(),
-  check("password").isLength({ min: 8 }),
+  check("email", "please enter a valid email address")
+    .normalizeEmail()
+    .isEmail(),
+  check("password", "password must be at least 8 characters").isLength({
+    min: 8,
+  }),
 ];
 
 router.post(
@@ -90,12 +92,8 @@ router.post(
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-      return next(
-        new HttpError(
-          "Wrong credentials provided, please check your credentials and try again",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        )
-      );
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
     const { email, password }: { email: string; password: string } = req.body;
@@ -105,7 +103,7 @@ router.post(
     if (existingUser) {
       return next(
         new HttpError(
-          "User with provided email already exist, please try another email",
+          "User with provided email already exist, please try another email address",
           StatusCodes.BAD_REQUEST
         )
       );
