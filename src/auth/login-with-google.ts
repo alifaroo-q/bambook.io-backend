@@ -36,10 +36,11 @@ router.get(
         {
           httpOnly: true,
           sameSite: "none",
-          // secure: process.env.NODE_ENV === "prod" ? true : false,
+          secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )
-      .json({ accessToken });
+      .json({ accessToken })
+      .redirect(clientUrl);
   }
 );
 
