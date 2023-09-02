@@ -7,7 +7,6 @@ import express from "express";
 import passport from "passport";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
-import cookieSession from "cookie-session";
 import { StatusCodes } from "http-status-codes";
 
 import connectDB from "./db/mongodb";
@@ -48,15 +47,6 @@ app.use(
 );
 
 app.enable("trust proxy");
-
-app.use(
-  cookieSession({
-    secret: "a33f8b9c650b411ea942184f5cb",
-    secure: process.env.NODE_ENV === "dev" ? false : true,
-    httpOnly: process.env.NODE_ENV === "dev" ? false : true,
-    sameSite: process.env.NODE_ENV === "dev" ? false : "none",
-  })
-);
 
 app.use(passport.initialize());
 

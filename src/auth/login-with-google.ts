@@ -30,7 +30,14 @@ router.get(
     const refreshToken = issueRefreshToken(req.user);
 
     res
-      .cookie("jwt", { access: accessToken.token, refresh: refreshToken })
+      .cookie(
+        "jwt",
+        { access: accessToken.token, refresh: refreshToken },
+        {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "dev" ? false : true,
+        }
+      )
       .json({ accessToken });
   }
 );
