@@ -38,26 +38,12 @@ app.use(helmet());
 
 // cors policy
 
-// const whiteListedDomains = [
-//   "http://localhost:5173",
-//   "http://localhost:3000",
-//   "http://127.0.0.1:5173",
-// ];
-
-// app.use(
-//   cors({
-//     origin: (origin, callback) => {
-//       if (whiteListedDomains.indexOf(origin) !== -1) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error());
-//       }
-//     },
-//     credentials: true,
-//   })
-// );
-
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 
 app.use(passport.initialize());
 
