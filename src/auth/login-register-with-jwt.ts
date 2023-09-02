@@ -69,7 +69,8 @@ router.post(
         { access: accessToken.token, refresh: refreshToken },
         {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "dev" ? false : true,
+          sameSite: "none",
+          // secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )
       .json(accessJwt);
