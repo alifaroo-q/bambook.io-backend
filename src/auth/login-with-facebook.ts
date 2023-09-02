@@ -35,6 +35,7 @@ router.get(
         { access: accessToken.token, refresh: refreshToken },
         {
           httpOnly: true,
+          sameSite: "none",
           secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )
