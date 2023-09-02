@@ -21,6 +21,7 @@ router.get(
   "/google/callback",
   passport.authenticate("google", {
     failureMessage: "Cannot login using google, try again later",
+    successRedirect: clientUrl,
     failureRedirect: errorLoginUrl,
     passReqToCallback: true,
     session: false,
@@ -36,7 +37,6 @@ router.get(
         {
           httpOnly: true,
           sameSite: "none",
-          path: clientUrl,
           secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )

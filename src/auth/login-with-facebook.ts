@@ -22,6 +22,7 @@ router.get(
   passport.authenticate("facebook", {
     failureMessage: "Cannot login using facebook, try again later",
     failureRedirect: errorLoginUrl,
+    successRedirect: clientUrl,
     passReqToCallback: true,
     session: false,
   }),
@@ -36,7 +37,6 @@ router.get(
         {
           httpOnly: true,
           sameSite: "none",
-          path: clientUrl,
           secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )
