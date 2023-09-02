@@ -41,9 +41,12 @@ app.use(helmet());
 app.use(
   cors({
     origin: ["http://localhost:5173"],
+    preflightContinue: true,
     credentials: true,
   })
 );
+
+app.enable("trust proxy");
 
 app.use(passport.initialize());
 
