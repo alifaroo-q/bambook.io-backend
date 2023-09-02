@@ -46,8 +46,6 @@ app.use(
   })
 );
 
-app.set("trust proxy", 1);
-
 app.use(passport.initialize());
 
 app.get("/health", (req, res) => {
