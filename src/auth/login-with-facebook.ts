@@ -35,7 +35,7 @@ router.get(
         { access: accessToken.token, refresh: refreshToken },
         {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "dev" ? false : true,
+          secure: process.env.NODE_ENV === "prod" ? true : false,
         }
       )
       .json({ accessToken });
