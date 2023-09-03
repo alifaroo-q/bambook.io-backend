@@ -22,6 +22,7 @@ import "./auth/passport-facebook";
 
 import api from "./api";
 import auth from "./auth";
+import getTokens from "./auth/get-tokens";
 import HttpError from "./model/http-error.model";
 import JWTAuthMiddleware from "./middleware/jwt-auth.middleware";
 
@@ -54,6 +55,8 @@ app.get("/health", (req, res) => {
 
 app.use("/auth", auth);
 app.use("/api", JWTAuthMiddleware, api);
+
+app.use("/getTokens", JWTAuthMiddleware, getTokens);
 
 app.get("/uploads/:filename", JWTAuthMiddleware, (req, res, next) => {
   const { filename } = req.params;

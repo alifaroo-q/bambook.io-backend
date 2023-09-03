@@ -30,17 +30,17 @@ router.get(
     const accessToken = issueAccessToken(req.user);
     const refreshToken = issueRefreshToken(req.user);
 
-    res
-      .cookie(
-        "jwt",
-        { access: accessToken.token, refresh: refreshToken },
-        {
-          httpOnly: true,
-          sameSite: "none",
-          secure: process.env.NODE_ENV === "prod" ? true : false,
-        }
-      )
-      .json({ accessToken });
+    res.cookie(
+      "jwt",
+      { access: accessToken.token, refresh: refreshToken },
+      {
+        path: "/",
+        httpOnly: true,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        secure: process.env.NODE_ENV === "prod" ? true : false,
+        sameSite: process.env.NODE_ENV === "prod" ? "none" : null,
+      }
+    );
   }
 );
 
