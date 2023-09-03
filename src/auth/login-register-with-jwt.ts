@@ -68,7 +68,6 @@ router.post(
         "jwt",
         { access: accessToken.token, refresh: refreshToken },
         {
-          path: "/",
           httpOnly: true,
           maxAge: 7 * 24 * 60 * 60 * 1000,
           secure: true,

@@ -5,11 +5,10 @@ const getTokens = (req: Request, res: Response, next: NextFunction) => {
   const token_cookies = req.cookies["jwt"];
   res
     .cookie("jwt", token_cookies, {
-      path: "/",
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      secure: process.env.NODE_ENV === "prod" ? true : false,
-      sameSite: process.env.NODE_ENV === "prod" ? "none" : null,
+      secure: true,
+      sameSite: "none",
     })
     .json({ access_token: token_cookies["access"] });
 };
