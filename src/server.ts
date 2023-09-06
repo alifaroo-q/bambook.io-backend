@@ -39,13 +39,14 @@ app.use(helmet());
 
 // cors policy
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173"],
-    preflightContinue: true,
-    credentials: true,
-  })
-);
+const corsConfig = {
+  origin: ["http://localhost:5173"],
+  methods: ["GET", "POST", "DELETE", "UPDATE", "PATCH", "OPTIONS"],
+  optionsSuccessStatus: 204,
+  credentials: true,
+};
+
+app.use(cors(corsConfig));
 
 app.use(passport.initialize());
 
@@ -56,7 +57,8 @@ app.get("/health", (req, res) => {
 app.use("/auth", auth);
 app.use("/api", JWTAuthMiddleware, api);
 
-app.use("/getTokens", JWTAuthMiddleware, getTokens);
+app.get("/getTokens", JWTAuthMiddleware, getTokens);
+app.post("/refreshToken", RefreshTokenMiddleware);
 
 app.get("/uploads/:filename", JWTAuthMiddleware, (req, res, next) => {
   const { filename } = req.params;
@@ -68,8 +70,6 @@ app.get("/uploads/:filename", JWTAuthMiddleware, (req, res, next) => {
     else return res.sendFile(imagePath);
   });
 });
-
-app.post("/refreshToken", RefreshTokenMiddleware);
 
 app.use(RouteNotFoundMiddleware);
 app.use(ErrorMiddleware);
