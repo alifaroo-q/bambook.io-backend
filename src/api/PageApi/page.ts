@@ -1,4 +1,5 @@
 import z from "zod";
+import fs from "fs";
 import path from "path";
 import multer from "multer";
 import mongoose from "mongoose";
@@ -102,11 +103,11 @@ const NEW_PAGE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return themeSchema.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "theme value must be a valid theme object",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    })
+    .custom((value) => {
+      return value;
     }),
   check(
     "footer_config",
@@ -118,11 +119,11 @@ const NEW_PAGE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return footerConfigSchema.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "footer_config value must be a valid footer_config object",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    })
+    .custom((value) => {
+      return value
     }),
 ];
 
@@ -339,15 +340,17 @@ router.delete(
         );
       }
 
-      const allImagesPath = [
-        `${UPLOADS + page.custom_logo.split("/").at(-1)}`,
-        `${UPLOADS + page.footer_logo.split("/").at(-1)}`,
-      ];
+      const custom_logo = UPLOADS + page.custom_logo.split("/").at(-1);
+      const footer_logo = UPLOADS + page.footer_logo.split("/").at(-1);
 
-      const allImagesDelete = allImagesPath.map((imagePath) =>
-        unlink(imagePath)
-      );
-      Promise.all(allImagesDelete);
+      fs.access(custom_logo, fs.constants.F_OK, async (error) => {
+        if (!error) await unlink(custom_logo);
+      });
+
+      fs.access(footer_logo, fs.constants.F_OK, async (error) => {
+        if (!error) await unlink(footer_logo);
+      });
+
       await PageModel.deleteOne({ _id: pageId }).exec();
 
       return res
@@ -444,11 +447,11 @@ const UPDATE_PAGE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return themeSchema.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "theme value must be a valid theme object",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    })
+    .custom((value) => {
+      return value;
     }),
   check(
     "footer_config",
@@ -462,11 +465,10 @@ const UPDATE_PAGE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return footerConfigSchema.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "footer_config value must be a valid footer_config object",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    }).custom((value) => {
+      return value;
     }),
 ];
 

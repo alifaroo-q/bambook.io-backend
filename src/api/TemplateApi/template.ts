@@ -1,3 +1,4 @@
+import fs from "fs";
 import z from "zod";
 import path from "path";
 import multer from "multer";
@@ -93,11 +94,11 @@ const NEW_TEMPLATE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return linksArray.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "links value must be a valid links array",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    })
+    .custom((value) => {
+      return value;
     }),
 ];
 
@@ -277,7 +278,11 @@ router.delete(
       }
 
       const custom_logo = template.custom_logo.split("/").at(-1);
-      await unlink(UPLOADS + custom_logo);
+
+      fs.access(UPLOADS + custom_logo, fs.constants.F_OK, async (error) => {
+        if (!error) await unlink(UPLOADS + custom_logo);
+      });
+
       await TemplateModel.deleteOne({ _id: templateId }).exec();
 
       return res
@@ -371,11 +376,11 @@ const UPDATE_TEMPLATE_VALIDATORS = [
         const payload: [] = JSON.parse(value);
         return linksArray.parse(payload);
       } catch (error) {
-        throw new HttpError(
-          "links value must be a valid links array",
-          StatusCodes.UNPROCESSABLE_ENTITY
-        );
+        return false;
       }
+    })
+    .custom((value) => {
+      return value;
     }),
 ];
 
