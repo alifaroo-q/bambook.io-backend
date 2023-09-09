@@ -340,8 +340,8 @@ router.delete(
         );
       }
 
-      const custom_logo = UPLOADS + page.custom_logo.split("/").at(-1);
-      const footer_logo = UPLOADS + page.footer_logo.split("/").at(-1);
+      const custom_logo = UPLOADS + page.custom_logo.split("/")[2];
+      const footer_logo = UPLOADS + page.footer_logo.split("/")[2];
 
       fs.access(custom_logo, fs.constants.F_OK, async (error) => {
         if (!error) await unlink(custom_logo);
@@ -392,8 +392,8 @@ router.delete("/user/all", async (req, res, next) => {
     let allImagesPath: string[] = [];
 
     pages.forEach((page) => {
-      allImagesPath.push(`${UPLOADS}${page.custom_logo.split("/").at(-1)}`);
-      allImagesPath.push(`${UPLOADS}${page.footer_logo.split("/").at(-1)}`);
+      allImagesPath.push(`${UPLOADS}${page.custom_logo.split("/")[2]}`);
+      allImagesPath.push(`${UPLOADS}${page.footer_logo.split("/")[2]}`);
     });
 
     const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
@@ -577,13 +577,13 @@ router.patch(
       };
 
       if (custom_logo) {
-        const old_custom_logo = page.custom_logo.split("/").at(-1);
+        const old_custom_logo = page.custom_logo.split("/")[2];
         await deleteImage(old_custom_logo);
         data["custom_logo"] = `${req.hostname}/uploads/${custom_logo}`;
       }
 
       if (footer_logo) {
-        const old_footer_logo = page.footer_logo.split("/").at(-1);
+        const old_footer_logo = page.footer_logo.split("/")[2];
         await deleteImage(old_footer_logo);
         data["custom_logo"] = `${req.hostname}/uploads/${footer_logo}`;
       }

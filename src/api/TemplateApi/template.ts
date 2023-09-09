@@ -277,7 +277,7 @@ router.delete(
         );
       }
 
-      const custom_logo = template.custom_logo.split("/").at(-1);
+      const custom_logo = template.custom_logo.split("/")[2]
 
       fs.access(UPLOADS + custom_logo, fs.constants.F_OK, async (error) => {
         console.log(error)
@@ -326,7 +326,7 @@ router.delete("/user/all", async (req, res, next) => {
     let allImagesPath: string[] = [];
 
     templates.forEach((template) => {
-      allImagesPath.push(`${UPLOADS}${template.custom_logo.split("/").at(-1)}`);
+      allImagesPath.push(`${UPLOADS}${template.custom_logo.split("/")[2]}`);
     });
 
     const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
@@ -468,7 +468,7 @@ router.patch(
       };
 
       if (req.file && req.file.fieldname === "custom_logo") {
-        const custom_logo = template.custom_logo.split("/").at(-1);
+        const custom_logo = template.custom_logo.split("/")[2];
         await deleteImage(custom_logo);
         data["custom_logo"] = `${req.hostname}/uploads/${req.file.filename}`;
       }
