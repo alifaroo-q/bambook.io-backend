@@ -280,6 +280,7 @@ router.delete(
       const custom_logo = template.custom_logo.split("/").at(-1);
 
       fs.access(UPLOADS + custom_logo, fs.constants.F_OK, async (error) => {
+        console.log(error)
         if (!error) await unlink(UPLOADS + custom_logo);
       });
 
@@ -289,6 +290,7 @@ router.delete(
         .status(StatusCodes.OK)
         .json({ success: true, message: "Template Deleted" });
     } catch (error) {
+      console.log(error)
       return next(
         new HttpError(
           "Template does not exist or something went wrong",
