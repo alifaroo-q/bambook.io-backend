@@ -30,7 +30,9 @@ const upload = multer({
 });
 
 const deleteImage = async (image: string) => {
-  await unlink(UPLOADS + image);
+  fs.access(UPLOADS + image, fs.constants.F_OK, async (error) => {
+    if (!error) await unlink(UPLOADS + image);
+  });
 };
 
 const themeSchema = z.object({
@@ -148,12 +150,12 @@ const ValidateImages = async (
       if (footer_logo) {
         return next();
       } else {
-        await unlink(UPLOADS + custom_logo);
+        await deleteImage(custom_logo);
         return next(error);
       }
     } else {
       if (footer_logo) {
-        await unlink(UPLOADS + footer_logo);
+        await deleteImage(footer_logo);
         return next(error);
       }
     }
@@ -343,14 +345,9 @@ router.delete(
       const custom_logo = UPLOADS + page.custom_logo.split("/")[2];
       const footer_logo = UPLOADS + page.footer_logo.split("/")[2];
 
-      fs.access(custom_logo, fs.constants.F_OK, async (error) => {
-        if (!error) await unlink(custom_logo);
-      });
-
-      fs.access(footer_logo, fs.constants.F_OK, async (error) => {
-        if (!error) await unlink(footer_logo);
-      });
-
+      await deleteImage(custom_logo);
+      await deleteImage(footer_logo);
+     
       await PageModel.deleteOne({ _id: pageId }).exec();
 
       return res

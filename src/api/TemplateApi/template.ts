@@ -54,7 +54,9 @@ const upload = multer({
 });
 
 const deleteImage = async (image: string) => {
-  await unlink(UPLOADS + image);
+  fs.access(UPLOADS + image, fs.constants.F_OK, async (error) => {
+    if (!error) await unlink(UPLOADS + image);
+  });
 };
 
 const NEW_TEMPLATE_VALIDATORS = [
@@ -277,12 +279,8 @@ router.delete(
         );
       }
 
-      const custom_logo = template.custom_logo.split("/")[2]
-
-      fs.access(UPLOADS + custom_logo, fs.constants.F_OK, async (error) => {
-        console.log(error)
-        if (!error) await unlink(UPLOADS + custom_logo);
-      });
+      const custom_logo = template.custom_logo.split("/")[2];
+      await deleteImage(custom_logo)
 
       await TemplateModel.deleteOne({ _id: templateId }).exec();
 
@@ -290,7 +288,7 @@ router.delete(
         .status(StatusCodes.OK)
         .json({ success: true, message: "Template Deleted" });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return next(
         new HttpError(
           "Template does not exist or something went wrong",
@@ -444,7 +442,7 @@ router.patch(
     try {
       const template = await TemplateModel.findById(templateId).exec();
       if (!template) {
-        await deleteImage(req.file.filename);
+        await deleteImage(req.file.filename)
         return next(
           new HttpError(
             "Template with provided id not found",
