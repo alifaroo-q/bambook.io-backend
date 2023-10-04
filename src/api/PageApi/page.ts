@@ -67,6 +67,12 @@ const NEW_PAGE_VALIDATORS = [
   check("title", "title value must be a string or it is missing")
     .isString()
     .notEmpty(),
+  check("templateId", "Wrong template id, please try again")
+    .isString()
+    .notEmpty()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
   check("url", "url value must be a string or it is missing")
     .isString()
     .notEmpty()
@@ -125,7 +131,7 @@ const NEW_PAGE_VALIDATORS = [
       }
     })
     .custom((value) => {
-      return value
+      return value;
     }),
 ];
 
@@ -196,6 +202,7 @@ router.post(
 
     const pageData = {
       userId: userId,
+      templateId: req.body.templateId,
       title: req.body.title,
       url: req.body.url,
       theme: req.body.theme,
@@ -269,6 +276,77 @@ router.get("/user/all", (req, res, next) => {
 });
 
 router.get(
+  "/template/:templateId",
+  param("templateId", "Wrong template id, please try again")
+    .isString()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { templateId } = req.params;
+
+    PageModel.find({templateId: templateId})
+      .exec()
+      .then((pages) => {
+        if (!pages)
+          return next(
+            new HttpError(
+              "Page(s) with provided template id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(pages);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.get(
+  "/template/:templateId/min",
+  param("templateId", "Wrong page id, please try again")
+    .isString()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
+  (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        const err = errors.array()[0];
+        return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { templateId } = req.params;
+
+    PageModel.find({templateId: templateId})
+      .select({ url: 1, title: 1 })
+      .exec()
+      .then((pages) => {
+        if (!pages)
+          return next(
+            new HttpError(
+              "Page(s) with provided template id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        return res.status(StatusCodes.OK).json(pages);
+      })
+      .catch((error) => {
+        return next(error);
+      });
+  }
+);
+
+router.get(
   "/one/:pageId",
   param("pageId", "Wrong page id, please try again")
     .isString()
@@ -328,7 +406,7 @@ router.delete(
       if (!page)
         return next(
           new HttpError(
-            "Template with provided id not found",
+            "Page with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
@@ -342,8 +420,8 @@ router.delete(
         );
       }
 
-      const custom_logo = UPLOADS + page.custom_logo.split("/")[2];
-      const footer_logo = UPLOADS + page.footer_logo.split("/")[2];
+      const custom_logo = page.custom_logo.split("/")[2];
+      const footer_logo = page.footer_logo.split("/")[2];
 
       await deleteImage(custom_logo);
       await deleteImage(footer_logo);
@@ -411,6 +489,13 @@ const UPDATE_PAGE_VALIDATORS = [
     .isString()
     .notEmpty()
     .isURL({ require_protocol: false, require_tld: false }),
+  check("templateId", "Wrong template id, please try again")
+    .optional()
+    .isString()
+    .notEmpty()
+    .custom((templateId) => {
+      return mongoose.Types.ObjectId.isValid(templateId);
+    }),
   check("font_family", "font_family value is missing")
     .optional()
     .isString()
@@ -464,7 +549,8 @@ const UPDATE_PAGE_VALIDATORS = [
       } catch (error) {
         return false;
       }
-    }).custom((value) => {
+    })
+    .custom((value) => {
       return value;
     }),
 ];
@@ -476,6 +562,7 @@ const ValidatePatchRequest = async (
 ) => {
   const requestMap = [
     "url",
+    "templateId",
     "font_family",
     "corner_styles",
     "title",
@@ -604,7 +691,7 @@ router.patch(
     } catch (error) {
       return next(
         new HttpError(
-          "Template update failed, something went wrong",
+          "Page update failed, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );

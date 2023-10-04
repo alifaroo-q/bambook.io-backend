@@ -2,6 +2,7 @@ import { model, Schema } from "mongoose";
 
 const pageSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: "User" },
+  templateId: { type: Schema.Types.ObjectId, ref: "Template" },
   title: String,
   url: String,
   custom_logo: String,
