@@ -242,6 +242,167 @@ router.post(
   }
 );
 
+const pageContents = z
+  .array(
+    z.object({
+      type: z.string(),
+      content: z.any(),
+    })
+  )
+  .nonempty();
+
+const PAGE_CONTENT_VALIDATORS = [
+  check("contents", "contents must be a valid contents array or it is missing")
+    .isString()
+    .notEmpty()
+    .customSanitizer((value) => {
+      try {
+        const payload: [] = JSON.parse(value);
+        return pageContents.parse(payload);
+      } catch (error) {
+        return false;
+      }
+    })
+    .custom((value) => {
+      return value;
+    }),
+];
+
+router.post(
+  "/:pageId/addContents",
+  upload.none(),
+  param("pageId", "Wrong page id, please try again")
+    .isString()
+    .custom((pageId) => {
+      return mongoose.Types.ObjectId.isValid(pageId);
+    }),
+  PAGE_CONTENT_VALIDATORS,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { pageId } = req.params;
+
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
+
+    try {
+      const page = await PageModel.findById(pageId).exec();
+      if (!page) {
+        return next(
+          new HttpError(
+            "Page with provided id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      }
+
+      if (page.userId.toString() !== userId) {
+        return next(
+          new HttpError(
+            "Cannot add contents to page, only user who created page can add contents",
+            StatusCodes.UNAUTHORIZED
+          )
+        );
+      }
+
+      const contents: [] = req.body.contents;
+
+      contents.forEach((content) => {
+        page.contents.push(content);
+      });
+
+      await page.save();
+
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Contents added to the page" });
+    } catch (error) {
+      return next(
+        new HttpError(
+          "Cannot add contents to the page, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
+    }
+  }
+);
+
+router.patch(
+  "/:pageId/contents",
+  upload.none(),
+  param("pageId", "Wrong page id, please try again")
+    .isString()
+    .custom((pageId) => {
+      return mongoose.Types.ObjectId.isValid(pageId);
+    }),
+  PAGE_CONTENT_VALIDATORS,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { pageId } = req.params;
+
+    // @ts-ignore
+    const userId = req.user.toObject({ getters: true }).id;
+
+    try {
+      const page = await PageModel.findById(pageId).exec();
+      if (!page) {
+        return next(
+          new HttpError(
+            "Page with provided id not found",
+            StatusCodes.NOT_FOUND
+          )
+        );
+      }
+
+      if (page.userId.toString() !== userId) {
+        return next(
+          new HttpError(
+            "Cannot update page content, only user who created page can update contents",
+            StatusCodes.UNAUTHORIZED
+          )
+        );
+      }
+
+      const contents: [] = req.body.contents;
+
+      await PageModel.updateOne({ _id: pageId }, { contents: contents })
+        .exec()
+        .then((page) => {
+          if (page.acknowledged) {
+            return res
+              .status(StatusCodes.OK)
+              .json({ success: true, message: "Page contents updated" });
+          } else {
+            return next(
+              new HttpError(
+                "Cannot update page contents, something went wrong",
+                StatusCodes.INTERNAL_SERVER_ERROR
+              )
+            );
+          }
+        });
+    } catch (error) {
+      return next(
+        new HttpError(
+          "Cannot update page contents, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
+    }
+  }
+);
+
 router.get("/all", (req, res, next) => {
   PageModel.find()
     .exec()

@@ -5,6 +5,10 @@ const pageSchema = new Schema({
   templateId: { type: Schema.Types.ObjectId, ref: "Template" },
   title: String,
   description: String,
+  contents: {
+    type: Array,
+    default: [],
+  },
   icon: String,
   url: String,
   custom_logo: String,
