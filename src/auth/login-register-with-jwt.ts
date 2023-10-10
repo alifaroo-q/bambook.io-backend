@@ -83,12 +83,16 @@ router.post(
       if (!user) {
         return res.status(StatusCodes.NOT_FOUND).json({
           success: false,
-          message: "User not found or wrong credentials",
+          message: "User not found for provided email address",
         });
       }
     } catch (error) {
-      console.error("Something went wrong, please try again", error);
-      next(error);
+      next(
+        new HttpError(
+          "Cannot login, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     }
 
     const isValidPassword = validateHash(password, user.password);
@@ -96,7 +100,7 @@ router.post(
     if (!isValidPassword) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
-        message: "Wrong credentials, please try again",
+        message: "Wrong password, please try again",
       });
     }
 
@@ -164,7 +168,9 @@ const SIGNUP_VALIDATORS = [
 ];
 
 const ValidateImage = (req: Request, res: Response, next: NextFunction) => {
-  if (req.file && req.file.fieldname === "image") return next();
+  if (req.file && req.file.fieldname === "image") {
+    return next();
+  }
   return next(
     new HttpError(
       "image must be a valid image or it is missing",
@@ -218,8 +224,12 @@ router.post(
       res.status(StatusCodes.CREATED).json({ success: true, user: newUser });
     } catch (error) {
       await deleteImage(req.file.filename);
-      console.error("Cannot register new user, something went wrong", error);
-      next(error);
+      return next(
+        new HttpError(
+          "Cannot register new user, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     }
   }
 );
@@ -239,21 +249,16 @@ router.delete(
 
       const image = user.image.split("/")[2];
 
-      fs.access(UPLOADS + image, fs.constants.F_OK, async (error) => {
-        console.log(error);
-        if (!error) await deleteImage(image);
-      });
-
+      await deleteImage(image);
       await User.deleteOne({ _id: userId }).exec();
 
       return res
         .status(StatusCodes.OK)
         .json({ success: true, message: "User Deleted" });
     } catch (error) {
-      console.log(error);
       return next(
         new HttpError(
-          "User does not exist or something went wrong",
+          "Cannot delete user, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );
@@ -321,8 +326,9 @@ const ValidateUpdateRequest = async (
   const request = Object.keys(req.body);
   const result = request.every((val) => requestMap.includes(val));
 
-  if (result) return next();
-  else {
+  if (result) {
+    return next();
+  } else {
     if (req.file && req.file.fieldname === "image") {
       await deleteImage(req.file.filename);
     }
@@ -365,8 +371,8 @@ router.patch(
       };
 
       if (req.file && req.file.fieldname === "image") {
-        const image = user.image.split("/")[2];
-        await deleteImage(image);
+        const old_image = user.image.split("/")[2];
+        await deleteImage(old_image);
         data["image"] = `${req.hostname}/uploads/${req.file.filename}`;
       }
 
@@ -380,7 +386,7 @@ router.patch(
           } else {
             return next(
               new HttpError(
-                "User update failed, something went wrong",
+                "Cannot update user, something went wrong",
                 StatusCodes.INTERNAL_SERVER_ERROR
               )
             );
@@ -389,7 +395,7 @@ router.patch(
     } catch (error) {
       return next(
         new HttpError(
-          "Template update failed, something went wrong",
+          "Cannot update user, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );
