@@ -67,6 +67,12 @@ const NEW_PAGE_VALIDATORS = [
   check("title", "title value must be a string or it is missing")
     .isString()
     .notEmpty(),
+  check("description", "description value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
+  check("icon", "icon value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
   check("templateId", "Wrong template id, please try again")
     .isString()
     .notEmpty()
@@ -204,6 +210,8 @@ router.post(
       userId: userId,
       templateId: req.body.templateId,
       title: req.body.title,
+      description: req.body.description,
+      icon: req.body.icon,
       url: req.body.url,
       theme: req.body.theme,
       font_family: req.body.font_family,
@@ -221,7 +229,14 @@ router.post(
     newPage
       .save()
       .then()
-      .catch((error) => next(error));
+      .catch(() =>
+        next(
+          new HttpError(
+            "Cannot create page, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        )
+      );
 
     res.status(StatusCodes.CREATED).json(newPage);
   }
@@ -230,26 +245,32 @@ router.post(
 router.get("/all", (req, res, next) => {
   PageModel.find()
     .exec()
-    .then((page) => {
-      return res.status(StatusCodes.OK).json(page);
+    .then((pages) => {
+      return res.status(StatusCodes.OK).json(pages);
     })
     .catch(() => {
       return next(
-        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+        new HttpError(
+          "Cannot get pages, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
       );
     });
 });
 
 router.get("/all/min", (req, res, next) => {
   PageModel.find()
-    .select({ url: 1, title: 1 })
+    .select({ url: 1, title: 1, description: 1 })
     .exec()
     .then((pages) => {
       return res.status(StatusCodes.OK).json(pages);
     })
     .catch(() => {
       return next(
-        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+        new HttpError(
+          "Cannot get pages, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
       );
     });
 });
@@ -260,18 +281,23 @@ router.get("/user/all", (req, res, next) => {
 
   PageModel.find({ userId: userId })
     .exec()
-    .then((page) => {
-      if (!page)
+    .then((pages) => {
+      if (!pages)
         return next(
           new HttpError(
-            "Page(s) with provided user id not found",
+            "Pages with provided user id not found",
             StatusCodes.NOT_FOUND
           )
         );
-      return res.status(StatusCodes.OK).json(page);
+      return res.status(StatusCodes.OK).json(pages);
     })
-    .catch((error) => {
-      return next(error);
+    .catch(() => {
+      return next(
+        new HttpError(
+          "Cannot get pages, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     });
 });
 
@@ -292,20 +318,27 @@ router.get(
 
     const { templateId } = req.params;
 
-    PageModel.find({templateId: templateId})
+    PageModel.find({ templateId: templateId })
       .exec()
       .then((pages) => {
-        if (!pages)
+        if (!pages) {
           return next(
             new HttpError(
-              "Page(s) with provided template id not found",
+              "Pages with provided template id not found",
               StatusCodes.NOT_FOUND
             )
           );
+        }
+
         return res.status(StatusCodes.OK).json(pages);
       })
-      .catch((error) => {
-        return next(error);
+      .catch(() => {
+        return next(
+          new HttpError(
+            "Cannot get pages for provided template id, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        );
       });
   }
 );
@@ -321,27 +354,34 @@ router.get(
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-        const err = errors.array()[0];
-        return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
 
     const { templateId } = req.params;
 
-    PageModel.find({templateId: templateId})
-      .select({ url: 1, title: 1 })
+    PageModel.find({ templateId: templateId })
+      .select({ url: 1, title: 1, description: 1 })
       .exec()
       .then((pages) => {
-        if (!pages)
+        if (!pages) {
           return next(
             new HttpError(
-              "Page(s) with provided template id not found",
+              "Pages with provided template id not found",
               StatusCodes.NOT_FOUND
             )
           );
+        }
+
         return res.status(StatusCodes.OK).json(pages);
       })
-      .catch((error) => {
-        return next(error);
+      .catch(() => {
+        return next(
+          new HttpError(
+            "Cannot get pages for provided template id, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        );
       });
   }
 );
@@ -366,17 +406,24 @@ router.get(
     PageModel.findById(pageId)
       .exec()
       .then((page) => {
-        if (!page)
+        if (!page) {
           return next(
             new HttpError(
               "Page with provided id not found",
               StatusCodes.NOT_FOUND
             )
           );
+        }
+
         return res.status(StatusCodes.OK).json(page);
       })
-      .catch((error) => {
-        return next(error);
+      .catch(() => {
+        return next(
+          new HttpError(
+            "Cannot get page for provided id, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        );
       });
   }
 );
@@ -403,18 +450,19 @@ router.delete(
 
     try {
       const page = await PageModel.findById(pageId).exec();
-      if (!page)
+      if (!page) {
         return next(
           new HttpError(
             "Page with provided id not found",
             StatusCodes.NOT_FOUND
           )
         );
+      }
 
       if (page.userId.toString() !== userId) {
         return next(
           new HttpError(
-            "Cannot delete page, only user who created page can delete it",
+            "Cannot delete page, only user who created the page can delete it",
             StatusCodes.UNAUTHORIZED
           )
         );
@@ -425,7 +473,7 @@ router.delete(
 
       await deleteImage(custom_logo);
       await deleteImage(footer_logo);
-     
+
       await PageModel.deleteOne({ _id: pageId }).exec();
 
       return res
@@ -451,16 +499,22 @@ router.delete("/user/all", async (req, res, next) => {
   PageModel.deleteMany({ userId: userId })
     .exec()
     .then((pages) => {
-      if (pages.deletedCount === 0)
+      if (pages.deletedCount === 0) {
         return next(
           new HttpError(
-            "Page(s) with provided user id not found",
+            "Pages with provided user id not found",
             StatusCodes.NOT_FOUND
           )
         );
+      }
     })
-    .catch((error) => {
-      return next(error);
+    .catch(() => {
+      return next(
+        new HttpError(
+          "Cannot delete pages, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     });
 
   try {
@@ -475,12 +529,17 @@ router.delete("/user/all", async (req, res, next) => {
 
     Promise.all(allImagesDelete);
   } catch (error) {
-    return next(error);
+    return next(
+      new HttpError(
+        "Cannot delete pages, something went wrong",
+        StatusCodes.INTERNAL_SERVER_ERROR
+      )
+    );
   }
 
   return res
     .status(StatusCodes.OK)
-    .json({ success: true, message: "Page(s) Deleted" });
+    .json({ success: true, message: "Pages Deleted" });
 });
 
 const UPDATE_PAGE_VALIDATORS = [
@@ -520,6 +579,11 @@ const UPDATE_PAGE_VALIDATORS = [
     .isIn(["true", "false"])
     .toBoolean(),
   check("title", "title value is missing").optional().isString().notEmpty(),
+  check("description", "description value is missing")
+    .optional()
+    .isString()
+    .notEmpty(),
+  check("icon", "icon value is missing").optional().isString().notEmpty(),
   check("theme", "theme value must a valid theme object or it is missing")
     .optional()
     .isString()
@@ -562,15 +626,17 @@ const ValidatePatchRequest = async (
 ) => {
   const requestMap = [
     "url",
+    "icon",
+    "theme",
+    "title",
     "templateId",
+    "description",
     "font_family",
     "corner_styles",
-    "title",
-    "pagination_bg_color",
-    "pagination_text_color",
-    "theme",
     "footer_toggle",
     "footer_config",
+    "pagination_bg_color",
+    "pagination_text_color",
   ];
   const request = Object.keys(req.body);
   const result = request.every((val) => requestMap.includes(val));
@@ -650,7 +716,7 @@ router.patch(
         footer_logo && (await deleteImage(footer_logo));
         return next(
           new HttpError(
-            "Cannot update page, only user who created page can update it",
+            "Cannot update page, only user who created the page can update it",
             StatusCodes.UNAUTHORIZED
           )
         );
@@ -669,7 +735,7 @@ router.patch(
       if (footer_logo) {
         const old_footer_logo = page.footer_logo.split("/")[2];
         await deleteImage(old_footer_logo);
-        data["custom_logo"] = `${req.hostname}/uploads/${footer_logo}`;
+        data["footer_logo"] = `${req.hostname}/uploads/${footer_logo}`;
       }
 
       await PageModel.updateOne({ _id: pageId }, data)
@@ -682,7 +748,7 @@ router.patch(
           } else {
             return next(
               new HttpError(
-                "Page update failed, something went wrong",
+                "Cannot update page for provided id, something went wrong",
                 StatusCodes.INTERNAL_SERVER_ERROR
               )
             );
@@ -691,7 +757,7 @@ router.patch(
     } catch (error) {
       return next(
         new HttpError(
-          "Page update failed, something went wrong",
+          "Cannot update page for provided id, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );

@@ -1,5 +1,5 @@
-import fs from "fs";
 import z from "zod";
+import fs from "fs";
 import path from "path";
 import multer from "multer";
 import mongoose from "mongoose";
@@ -67,6 +67,9 @@ const NEW_TEMPLATE_VALIDATORS = [
   check("font_family", "font_family value must be a string or it is missing")
     .isString()
     .notEmpty(),
+  check("icon", "icon value must be a string or it is missing")
+    .isString()
+    .notEmpty(),
   check(
     "corner_styles",
     "corner_styles value must be a string or it is missing"
@@ -127,7 +130,7 @@ router.post(
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
-      await unlink(UPLOADS + req.file.filename);
+      await deleteImage(req.file.filename);
       const err = errors.array()[0];
       return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
     }
@@ -137,6 +140,7 @@ router.post(
 
     const templateData = {
       url: req.body.url,
+      icon: req.body.icon,
       font_family: req.body.font_family,
       corner_styles: req.body.corner_styles,
       header: req.body.header,
@@ -152,7 +156,14 @@ router.post(
     newTemplate
       .save()
       .then()
-      .catch((error) => next(error));
+      .catch(() =>
+        next(
+          new HttpError(
+            "Cannot create template, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        )
+      );
     return res.status(StatusCodes.CREATED).json(newTemplate.toJSON());
   }
 );
@@ -160,12 +171,15 @@ router.post(
 router.get("/all", (req, res, next) => {
   TemplateModel.find()
     .exec()
-    .then((template) => {
-      return res.status(StatusCodes.OK).json(template);
+    .then((templates) => {
+      return res.status(StatusCodes.OK).json(templates);
     })
     .catch(() => {
       return next(
-        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+        new HttpError(
+          "Cannot get templates, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
       );
     });
 });
@@ -179,7 +193,10 @@ router.get("/all/min", (req, res, next) => {
     })
     .catch(() => {
       return next(
-        new HttpError("Something went wrong", StatusCodes.INTERNAL_SERVER_ERROR)
+        new HttpError(
+          "Cannot get templates, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
       );
     });
 });
@@ -191,17 +208,21 @@ router.get("/user/all", (req, res, next) => {
   TemplateModel.find({ userId: userId })
     .exec()
     .then((templates) => {
-      if (!templates)
+      if (!templates) {
         return next(
-          new HttpError(
-            "Template(s) with provided user id not found",
-            StatusCodes.NOT_FOUND
-          )
+          new HttpError("Templates not found for user", StatusCodes.NOT_FOUND)
         );
+      }
+
       return res.status(StatusCodes.OK).json(templates);
     })
     .catch((error) => {
-      return next(error);
+      return next(
+        new HttpError(
+          "Cannot get templates, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     });
 });
 
@@ -233,8 +254,13 @@ router.get(
           );
         return res.status(StatusCodes.OK).json(template);
       })
-      .catch((error) => {
-        return next(error);
+      .catch(() => {
+        return next(
+          new HttpError(
+            "Cannot get template for provided id, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        );
       });
   }
 );
@@ -273,14 +299,14 @@ router.delete(
       if (template.userId.toString() !== userId) {
         return next(
           new HttpError(
-            "Cannot delete template, only user who created template can delete it",
+            "Cannot delete template, only user who created the template can delete it",
             StatusCodes.UNAUTHORIZED
           )
         );
       }
 
       const custom_logo = template.custom_logo.split("/")[2];
-      await deleteImage(custom_logo)
+      await deleteImage(custom_logo);
 
       await TemplateModel.deleteOne({ _id: templateId }).exec();
 
@@ -288,10 +314,9 @@ router.delete(
         .status(StatusCodes.OK)
         .json({ success: true, message: "Template Deleted" });
     } catch (error) {
-      console.log(error);
       return next(
         new HttpError(
-          "Template does not exist or something went wrong",
+          "Cannot delete template for provided id, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );
@@ -310,14 +335,16 @@ router.delete("/user/all", async (req, res, next) => {
     .then((templates) => {
       if (templates.deletedCount === 0)
         return next(
-          new HttpError(
-            "Template(s) with provided user id not found",
-            StatusCodes.NOT_FOUND
-          )
+          new HttpError("Templates not found for user", StatusCodes.NOT_FOUND)
         );
     })
-    .catch((error) => {
-      return next(error);
+    .catch(() => {
+      return next(
+        new HttpError(
+          "Cannot delete templates for user, something went wrong",
+          StatusCodes.INTERNAL_SERVER_ERROR
+        )
+      );
     });
 
   try {
@@ -330,12 +357,17 @@ router.delete("/user/all", async (req, res, next) => {
     const allImagesDelete = allImagesPath.map((imagePath) => unlink(imagePath));
     Promise.all(allImagesDelete);
   } catch (error) {
-    return next(error);
+    return next(
+      new HttpError(
+        "Cannot delete templates for user, something went wrong",
+        StatusCodes.INTERNAL_SERVER_ERROR
+      )
+    );
   }
 
   return res
     .status(StatusCodes.OK)
-    .json({ success: true, message: "Template(s) Deleted" });
+    .json({ success: true, message: "Templates Deleted" });
 });
 
 const UPDATE_TEMPLATE_VALIDATORS = [
@@ -391,12 +423,13 @@ const ValidatePatchRequest = async (
 ) => {
   const requestMap = [
     "url",
+    "icon",
+    "title",
+    "links",
+    "header",
+    "pagination",
     "font_family",
     "corner_styles",
-    "title",
-    "header",
-    "links",
-    "pagination",
   ];
   const request = Object.keys(req.body);
   const result = request.every((val) => requestMap.includes(val));
@@ -442,7 +475,7 @@ router.patch(
     try {
       const template = await TemplateModel.findById(templateId).exec();
       if (!template) {
-        await deleteImage(req.file.filename)
+        await deleteImage(req.file.filename);
         return next(
           new HttpError(
             "Template with provided id not found",
@@ -455,7 +488,7 @@ router.patch(
         await deleteImage(req.file.filename);
         return next(
           new HttpError(
-            "Cannot update template, only user who created template can update it",
+            "Cannot update template, only user who created the template can update it",
             StatusCodes.UNAUTHORIZED
           )
         );
@@ -466,8 +499,8 @@ router.patch(
       };
 
       if (req.file && req.file.fieldname === "custom_logo") {
-        const custom_logo = template.custom_logo.split("/")[2];
-        await deleteImage(custom_logo);
+        const old_custom_logo = template.custom_logo.split("/")[2];
+        await deleteImage(old_custom_logo);
         data["custom_logo"] = `${req.hostname}/uploads/${req.file.filename}`;
       }
 
@@ -481,7 +514,7 @@ router.patch(
           } else {
             return next(
               new HttpError(
-                "Template update failed, something went wrong",
+                "Cannot update the template with provided id, something went wrong",
                 StatusCodes.INTERNAL_SERVER_ERROR
               )
             );
@@ -490,7 +523,7 @@ router.patch(
     } catch (error) {
       return next(
         new HttpError(
-          "Template update failed, something went wrong",
+          "Cannot update the template with provided id, something went wrong",
           StatusCodes.INTERNAL_SERVER_ERROR
         )
       );

@@ -4,6 +4,7 @@ const templateSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User" },
     url: String,
+    icon: String,
     font_family: String,
     corner_styles: String,
     header: Boolean,
