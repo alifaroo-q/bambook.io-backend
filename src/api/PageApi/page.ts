@@ -589,6 +589,49 @@ router.get(
   }
 );
 
+router.get(
+  "/:pageId/getContents",
+  param("pageId", "Wrong page id, please try again")
+    .isString()
+    .custom((pageId) => {
+      return mongoose.Types.ObjectId.isValid(pageId);
+    }),
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const err = errors.array()[0];
+      return next(new HttpError(err.msg, StatusCodes.UNPROCESSABLE_ENTITY));
+    }
+
+    const { pageId } = req.params;
+
+    PageModel.findById(pageId)
+      .select({ title: 1, contents: 1 })
+      .exec()
+      .then((page) => {
+        if (!page) {
+          return next(
+            new HttpError(
+              "Page with provided template id not found",
+              StatusCodes.NOT_FOUND
+            )
+          );
+        }
+
+        return res.status(StatusCodes.OK).json(page);
+      })
+      .catch(() => {
+        return next(
+          new HttpError(
+            "Cannot get contents for provided page id, something went wrong",
+            StatusCodes.INTERNAL_SERVER_ERROR
+          )
+        );
+      });
+  }
+);
+
 router.delete(
   "/:pageId",
   param("pageId", "Wrong page id, please try again")
